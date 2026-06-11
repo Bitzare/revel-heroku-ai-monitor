@@ -6,6 +6,7 @@
     <title>Revel AI Ops Center</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Cliente de WebSockets incorporado mágicamente por Node -->
     <script src="/socket.io/socket.io.js"></script>
     
     <style>
@@ -30,6 +31,12 @@
         
         .header-right { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;}
         
+        /* SEMÁFORO DE SALUD (CAPA 4) */
+        .health-badge { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; border: 1px solid; transition: all 0.3s ease; }
+        .health-green { background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
+        .health-yellow { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); }
+        .health-red { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
+        
         .live-indicator { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #10b981; background: rgba(16, 185, 129, 0.1); padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.2); }
         .dot { width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
@@ -38,7 +45,13 @@
         .btn-header:hover { border-color: var(--text-muted); color: white;}
         .btn-header.active { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: #38bdf8; }
 
-        .chart-container { height: 180px; width: 100%; margin-bottom: 2rem; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 12px; padding: 1rem; }
+        .chart-container { height: 180px; width: 100%; margin-bottom: 2rem; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 12px; padding: 1rem; cursor: crosshair; }
+
+        /* TIME-TRAVEL FILTER (CAPA 4) */
+        .time-filter-badge { display: none; background: #3b82f6; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; cursor: pointer; align-items: center; gap: 6px; margin-left: 10px; border: none; transition: background 0.2s; }
+        .time-filter-badge:hover { background: #2563eb; }
+        .time-filter-badge.active { display: inline-flex; animation: popIn 0.3s ease-out; }
+        @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
         .controls { display: flex; gap: 1.5rem; margin-bottom: 2rem; align-items: center; background: var(--bg-card); padding: 1rem 1.5rem; border-radius: 12px; border: 1px solid var(--border-light); }
         .search-box { flex: 1; display: flex; align-items: center; background: var(--bg-input); border-radius: 8px; padding: 0 12px; border: 1px solid var(--border); }
@@ -71,6 +84,11 @@
         .error-box { font-family: 'Fira Code', monospace; font-size: 0.8rem; color: #fca5a5; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); padding: 40px 12px 12px 12px; border-radius: 8px; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
         .error-box::-webkit-scrollbar { width: 6px; }
         .error-box::-webkit-scrollbar-thumb { background: rgba(239, 68, 68, 0.2); border-radius: 10px; }
+
+        /* BEAUTIFIER STYLES (CAPA 4) */
+        .hl-critical { color: #ef4444; font-weight: 900; text-shadow: 0 0 5px rgba(239,68,68,0.3); }
+        .hl-own-code { color: #60a5fa; font-weight: 600; text-decoration: underline; text-decoration-style: dotted; text-decoration-color: rgba(96, 165, 250, 0.5); }
+        .hl-string { color: #a78bfa; font-style: italic; }
 
         .buttons-area { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; z-index: 10; }
         .action-btn { background: rgba(24, 24, 27, 0.85); border: 1px solid var(--border); color: var(--text-muted); padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(4px); }
@@ -119,7 +137,11 @@
 <body>
 
     <header>
-        <h1>🤖 SQL Ops Center <span style="font-size: 0.8rem; background: #a855f7; color:white; padding: 2px 8px; border-radius: 4px; font-weight:bold;">v4.0</span></h1>
+        <h1>
+            🤖 Ops Center 
+            <span style="font-size: 0.8rem; background: #a855f7; color:white; padding: 2px 8px; border-radius: 4px; font-weight:bold; margin-right: 15px;">v4.0</span>
+            <div id="healthIndicator" class="health-badge health-green">🟢 Analizando salud...</div>
+        </h1>
         <div class="header-right">
             <button id="exportCsvBtn" class="btn-header">📥 <span data-i18n="exportCsv">Exportar CSV</span></button>
             <button id="langBtn" class="btn-header">🌐 EN / ES</button>
@@ -130,7 +152,7 @@
     </header>
 
     <div class="chart-container">
-        <canvas id="errorChart"></canvas>
+        <canvas id="errorChart" title="Haz clic en una barra para filtrar los errores por minuto"></canvas>
     </div>
 
     <div class="controls">
@@ -143,6 +165,11 @@
             <button class="filter-btn" data-filter="5xx" data-i18n="filter5xx">Solo 5xx (Caídas)</button>
             <button class="filter-btn" data-filter="4xx" data-i18n="filter4xx">Solo 4xx</button>
             <button class="filter-btn" data-filter="POST" data-i18n="filterPost">Mutaciones (POST/PUT)</button>
+            
+            <!-- TIME TRAVEL BADGE -->
+            <button id="timeFilterBtn" class="time-filter-badge" onclick="clearTimeFilter()">
+                ⏳ Filtrando por: <span id="timeFilterLabel">--:--</span> ✕
+            </button>
         </div>
     </div>
 
@@ -170,7 +197,8 @@
                 chartClient: "Cliente (4xx)", chartServer: "Servidor (5xx)",
                 btnTicket: "📝 Ticket", btnCopy: "Copiar", btnCopied: "¡Hecho!",
                 times: "veces", aiInsightTitle: "Sugerencia de IA", checklistTitle: "📋 Tareas Recomendadas",
-                emptyChecklist: "✨ ¡Cero tareas activas! Backend SQL en perfecto estado.", actionLabel: "Acción:"
+                emptyChecklist: "✨ ¡Cero tareas activas! Backend SQL en perfecto estado.", actionLabel: "Acción:",
+                healthGreen: "🟢 Healthy (Estable)", healthYellow: "🟡 Warning (Degradado)", healthRed: "🔴 Critical (Caídas/Anomalías)"
             },
             en: {
                 soundOn: "Sound ON", soundOff: "Sound OFF", exportCsv: "Export CSV",
@@ -180,7 +208,8 @@
                 chartClient: "Client (4xx)", chartServer: "Server (5xx)",
                 btnTicket: "📝 Ticket", btnCopy: "Copy", btnCopied: "Done!",
                 times: "times", aiInsightTitle: "AI Insight", checklistTitle: "📋 Recommended Tasks",
-                emptyChecklist: "✨ Zero active tasks! Perfect SQL backend.", actionLabel: "Action:"
+                emptyChecklist: "✨ Zero active tasks! Perfect SQL backend.", actionLabel: "Action:",
+                healthGreen: "🟢 Healthy (Stable)", healthYellow: "🟡 Warning (Degraded)", healthRed: "🔴 Critical (Crashes/Anomalies)"
             }
         };
 
@@ -193,6 +222,7 @@
             applyLanguage();
             renderDashboard(lastGroupedLogs);
             updateChart(rawLogsArray);
+            updateHealthIndicator();
         }
 
         function applyLanguage() {
@@ -204,27 +234,24 @@
         langBtn.addEventListener('click', toggleLanguage);
 
         // ==========================================
-        // WEBSOCKETS MAGIA (El reemplazo del setInterval)
+        // WEBSOCKETS MAGIA
         // ==========================================
         const socket = io();
         let rawLogsArray = [];
         let lastGroupedLogs = [];
 
-        // Conexión inicial (carga el historial rápido de SQL)
         socket.on('initial_logs', (logsFromDb) => {
-            rawLogsArray = logsFromDb.reverse(); // El más viejo primero para el procesado cronológico
+            rawLogsArray = logsFromDb.reverse(); 
             processAndRenderLogs();
         });
 
-        // Evento en tiempo real (entra un error milisegundos después de que la IA lo procesa)
         socket.on('new_log', (newLog) => {
             rawLogsArray.push(newLog);
-            if(rawLogsArray.length > 300) rawLogsArray.shift(); // Evitar RAM infinita en el frontend
+            if(rawLogsArray.length > 300) rawLogsArray.shift(); 
             processAndRenderLogs();
             playDing();
         });
 
-        // Evento asíncrono para la checklist
         socket.on('update_checklist', (tasks) => {
             renderChecklist(tasks);
         });
@@ -237,6 +264,7 @@
         // ==========================================
         function processAndRenderLogs() {
             updateChart(rawLogsArray);
+            updateHealthIndicator(); // Recalcular salud global
 
             const grouped = {};
             rawLogsArray.forEach(log => {
@@ -258,12 +286,60 @@
         }
 
         // ==========================================
-        // RENDERIZADO VISUAL
+        // CAPA 4: SEMÁFORO DE SALUD (Apdex)
+        // ==========================================
+        function updateHealthIndicator() {
+            const now = new Date();
+            // Analizar la salud en la ventana de los últimos 5 minutos
+            const fiveMinsAgo = new Date(now.getTime() - 5 * 60000);
+            const recentLogs = rawLogsArray.filter(l => new Date(l.timestamp) >= fiveMinsAgo);
+
+            let hasAnomaly = recentLogs.some(l => l.is_anomaly);
+            let count5xx = recentLogs.filter(l => String(l.status).startsWith('5')).length;
+            let count4xx = recentLogs.filter(l => String(l.status).startsWith('4')).length;
+
+            const healthEl = document.getElementById('healthIndicator');
+            const dict = i18n[currentLang];
+
+            if (hasAnomaly || count5xx >= 3) {
+                healthEl.className = 'health-badge health-red';
+                healthEl.innerHTML = dict.healthRed;
+            } else if (count5xx > 0 || count4xx >= 15) {
+                healthEl.className = 'health-badge health-yellow';
+                healthEl.innerHTML = dict.healthYellow;
+            } else {
+                healthEl.className = 'health-badge health-green';
+                healthEl.innerHTML = dict.healthGreen;
+            }
+        }
+
+        // ==========================================
+        // CAPA 4: STACKTRACE BEAUTIFIER
+        // ==========================================
+        function beautifyError(text) {
+            if (!text) return '';
+            let html = escapeHtml(text);
+            
+            // 1. Resaltar críticos (Error 1062, panic, fatal)
+            html = html.replace(/(Error \d+|panic:|fatal error:|invalid syntax)/gi, '<span class="hl-critical">$1</span>');
+            
+            // 2. Resaltar Strings y claves SQL ('ejemplo' o "ejemplo")
+            html = html.replace(/('([^']+)'|"([^"]+)")/g, '<span class="hl-string">$1</span>');
+            
+            // 3. Resaltar rutas del Backend propio (/handlers/, /models/)
+            html = html.replace(/(\/handlers\/[\w/.-]+|\/models\/[\w/.-]+)/gi, '<span class="hl-own-code">$1</span>');
+            
+            return html;
+        }
+
+        // ==========================================
+        // RENDERIZADO VISUAL Y FILTROS
         // ==========================================
         const dashboard = document.getElementById('dashboard');
         const searchInput = document.getElementById('searchInput');
         const filterBtns = document.querySelectorAll('.filter-btn');
         let currentFilter = "all";
+        let activeTimeFilter = null; // CAPA 4: Variable Time-Travel
 
         searchInput.addEventListener('input', applyFilters);
         filterBtns.forEach(btn => {
@@ -275,18 +351,30 @@
             });
         });
 
+        // CAPA 4: Limpiar el filtro temporal del gráfico
+        function clearTimeFilter() {
+            activeTimeFilter = null;
+            document.getElementById('timeFilterBtn').classList.remove('active');
+            applyFilters();
+        }
+
         function applyFilters() {
             const searchTerm = searchInput.value.toLowerCase();
+            
             document.querySelectorAll('.card').forEach(card => {
                 const text = card.getAttribute('data-searchable').toLowerCase();
                 const status = card.getAttribute('data-status');
                 const method = card.getAttribute('data-method');
+                const cardTimeStr = card.getAttribute('data-time-str'); // Ej: "11:42"
                 let show = true;
 
                 if (searchTerm && !text.includes(searchTerm)) show = false;
                 if (currentFilter === '5xx' && !status.startsWith('5')) show = false;
                 if (currentFilter === '4xx' && !status.startsWith('4')) show = false;
                 if (currentFilter === 'POST' && !['POST','PUT','PATCH'].includes(method)) show = false;
+                
+                // CAPA 4: Filtro de Time-Travel
+                if (activeTimeFilter && cardTimeStr !== activeTimeFilter) show = false;
 
                 card.classList.toggle('hidden', !show);
             });
@@ -304,9 +392,13 @@
             }
 
             groupedLogs.forEach(log => {
-                let statusClass = log.status.startsWith('5') ? 'status-5xx' : 'status-4xx';
+                let statusClass = String(log.status).startsWith('5') ? 'status-5xx' : 'status-4xx';
                 const methodClass = `method-${log.method}` || 'method-ERROR';
                 total += log.count;
+
+                // Preparar timestamp extraíble para el Time-Travel (HH:MM)
+                const d = new Date(log.latestTs);
+                const minStr = !isNaN(d) ? d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0') : '';
 
                 const copyText = `[${log.status}] ${log.method} ${log.url}\nError: ${log.error_real}`;
                 const ticketMarkdown = `🚨 *Bug Report: HTTP ${log.status}*\n* **Endpoint:** \`${log.method} ${log.url}\`\n* **Última vez:** ${formatDate(log.latestTs)}\n* **Ocurrencias:** ${log.count}\n\n*Detalles del Stacktrace:*\n\`\`\`text\n${log.error_real}\n\`\`\``;
@@ -327,7 +419,9 @@
                 card.setAttribute('data-searchable', searchableData);
                 card.setAttribute('data-status', log.status);
                 card.setAttribute('data-method', log.method);
+                card.setAttribute('data-time-str', minStr); // Inyección para Capa 4
 
+                // Capa 4: Uso de beautifyError() en vez de escapeHtml crudo
                 card.innerHTML = `
                     <div class="card-header">
                         <div style="display:flex; gap: 8px; align-items:center;">
@@ -346,7 +440,7 @@
                             <button class="action-btn btn-ticket" onclick="copyData(this)" data-copy="${escapeHtml(ticketMarkdown)}">${dict.btnTicket}</button>
                             <button class="action-btn" onclick="copyData(this)" data-copy="${escapeHtml(copyText)}">${dict.btnCopy}</button>
                         </div>
-                        <div class="error-box">${escapeHtml(log.error_real)}</div>
+                        <div class="error-box">${beautifyError(log.error_real)}</div>
                     </div>
                 `;
                 dashboard.appendChild(card);
@@ -392,7 +486,7 @@
                 if(isNaN(d)) return;
                 const minStr = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
                 if(!timeBuckets[minStr]) timeBuckets[minStr] = { e4xx: 0, e5xx: 0 };
-                if(log.status.startsWith('5')) timeBuckets[minStr].e5xx++;
+                if(String(log.status).startsWith('5')) timeBuckets[minStr].e5xx++;
                 else timeBuckets[minStr].e4xx++;
             });
 
@@ -409,7 +503,21 @@
                         { label: dict.chartClient, data: data4xx, backgroundColor: '#fbbf24', borderRadius: 4, stacked: true },
                         { label: dict.chartServer, data: data5xx, backgroundColor: '#ef4444', borderRadius: 4, stacked: true }
                     ]},
-                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } } }
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } },
+                        // CAPA 4: EVENTO ONCLICK PARA TIME-TRAVEL
+                        onClick: (event, elements, chart) => {
+                            if (elements.length > 0) {
+                                const label = chart.data.labels[elements[0].index];
+                                activeTimeFilter = label;
+                                document.getElementById('timeFilterBtn').classList.add('active');
+                                document.getElementById('timeFilterLabel').innerText = label;
+                                applyFilters();
+                            }
+                        }
+                    }
                 });
             } else {
                 errorChart.data.labels = labels;
@@ -422,7 +530,7 @@
         }
 
         // ==========================================
-        // EXPORTACIÓN Y SONIDO (Intactos)
+        // EXPORTACIÓN Y SONIDO
         // ==========================================
         let soundEnabled = false;
         let audioCtx = null;
