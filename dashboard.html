@@ -6,6 +6,7 @@
     <title>Revel AI Ops Center</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     
     <style>
         :root {
@@ -33,15 +34,12 @@
         .dot { width: 8px; height: 8px; background-color: #10b981; border-radius: 50%; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
 
-        /* Botones de Cabecera */
         .btn-header { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-muted); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; font-weight: 600; display: flex; gap: 6px; align-items: center;}
         .btn-header:hover { border-color: var(--text-muted); color: white;}
         .btn-header.active { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: #38bdf8; }
 
-        /* Chart Area */
         .chart-container { height: 180px; width: 100%; margin-bottom: 2rem; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 12px; padding: 1rem; }
 
-        /* Controles */
         .controls { display: flex; gap: 1.5rem; margin-bottom: 2rem; align-items: center; background: var(--bg-card); padding: 1rem 1.5rem; border-radius: 12px; border: 1px solid var(--border-light); }
         .search-box { flex: 1; display: flex; align-items: center; background: var(--bg-input); border-radius: 8px; padding: 0 12px; border: 1px solid var(--border); }
         .search-box input { background: transparent; border: none; color: white; width: 100%; padding: 10px; font-family: 'Inter', sans-serif; outline: none; }
@@ -50,25 +48,22 @@
         .filter-btn:hover { background: var(--bg-input); color: white; }
         .filter-btn.active { background: white; color: black; border-color: white; }
 
-        /* --- DISTRIBUCIÓN EN DOS COLUMNAS --- */
         .workspace { display: flex; gap: 2rem; align-items: flex-start; }
         .left-panel { flex: 2; min-width: 0; }
         .right-panel { flex: 1; min-width: 380px; position: sticky; top: 2rem; }
 
-        /* Grid & Cards */
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 1.2rem; }
         .card { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 10px; padding: 1.2rem; display: flex; flex-direction: column; gap: 0.8rem; transition: opacity 0.2s, transform 0.2s; position: relative;}
         .card.hidden { display: none; }
+        .card.anomaly { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.1); }
 
         .card-header { display: flex; justify-content: space-between; align-items: center; }
         .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.5px; }
         .timestamp { font-family: 'Fira Code', monospace; font-size: 0.75rem; color: var(--text-muted); }
-        
         .stack-badge { background: #ef4444; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; border: 2px solid var(--bg-card); box-shadow: 0 2px 5px rgba(0,0,0,0.3);}
 
         .url-box { font-family: 'Fira Code', monospace; font-size: 0.8rem; color: #d4d4d8; background: var(--bg-body); padding: 8px 10px; border-radius: 6px; word-break: break-all; border-left: 2px solid var(--text-muted); }
         
-        /* AI Suggestion Box */
         .ai-insight { background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; color: #e9d5ff; border-left: 3px solid var(--ai-accent); margin-top: 4px; }
         .ai-insight strong { color: #d8b4fe; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 
@@ -92,7 +87,6 @@
         
         #empty-state { grid-column: 1 / -1; text-align: center; padding: 4rem; color: var(--text-muted); font-size: 1rem; }
 
-        /* --- ESTILOS DE LA SECCIÓN CHECKLIST --- */
         .checklist-card { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
         .checklist-card h2 { color: var(--ai-accent); font-size: 1.25rem; font-weight: 700; margin: 0; padding-bottom: 0.8rem; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; gap: 8px; }
         
@@ -102,8 +96,6 @@
 
         .task-item { background: var(--bg-body); border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; display: flex; gap: 12px; align-items: flex-start; transition: all 0.2s; }
         .task-item:hover { border-color: #52525b; }
-        
-        /* Prioridades laterales */
         .task-item.prio-Crítica { border-left: 3px solid #ef4444; }
         .task-item.prio-Alta { border-left: 3px solid #f97316; }
         .task-item.prio-Media { border-left: 3px solid #eab308; }
@@ -121,21 +113,18 @@
         .task-meta-route { font-family: 'Fira Code', monospace; font-size: 0.75rem; color: var(--text-muted); word-break: break-all; }
         .task-instruction { font-size: 0.8rem; color: #d4d4d8; line-height: 1.4; margin: 4px 0 0 0; background: rgba(255,255,255,0.02); padding: 6px 8px; border-radius: 4px; border: 1px dashed rgba(255,255,255,0.05); }
 
-        @media (max-width: 1100px) {
-            .workspace { flex-direction: column; }
-            .right-panel { width: 100%; position: static; }
-        }
+        @media (max-width: 1100px) { .workspace { flex-direction: column; } .right-panel { width: 100%; position: static; } }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>🤖 Ops Center</h1>
+        <h1>🤖 SQL Ops Center <span style="font-size: 0.8rem; background: #a855f7; color:white; padding: 2px 8px; border-radius: 4px; font-weight:bold;">v4.0</span></h1>
         <div class="header-right">
             <button id="exportCsvBtn" class="btn-header">📥 <span data-i18n="exportCsv">Exportar CSV</span></button>
             <button id="langBtn" class="btn-header">🌐 EN / ES</button>
             <button id="soundBtn" class="btn-header sound-toggle">🔇 <span data-i18n="soundOff">Sonido OFF</span></button>
-            <div class="live-indicator"><div class="dot"></div> <span data-i18n="autoSync">Auto-sync</span></div>
+            <div class="live-indicator" id="wsIndicator"><div class="dot"></div> En vivo</div>
             <div style="color: var(--text-muted); font-weight: 600; font-size: 0.9rem;" id="countTotal">Total: 0</div>
         </div>
     </header>
@@ -158,54 +147,40 @@
     </div>
 
     <div class="workspace">
-        
         <div class="left-panel">
             <div class="grid" id="dashboard"></div>
         </div>
-
         <div class="right-panel">
             <div class="checklist-card">
                 <h2 data-i18n="checklistTitle">📋 Plan de Refactorización IA</h2>
                 <div class="task-list" id="checklistTasks">
-                    <p style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="loadingTasks">Cargando tareas pendientes prioritarias...</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Conectando a base de datos...</p>
                 </div>
             </div>
         </div>
-
     </div>
 
     <script>
-        // ==========================================
-        // SISTEMA DE INTERNACIONALIZACIÓN (i18n)
-        // ==========================================
         const i18n = {
             es: {
-                soundOn: "Sonido ON", soundOff: "Sonido OFF", autoSync: "Auto-sync", exportCsv: "Exportar CSV",
+                soundOn: "Sonido ON", soundOff: "Sonido OFF", exportCsv: "Exportar CSV",
                 searchPlaceholder: "Filtrar por endpoint o mensaje de error...",
-                filterAll: "Todos", filter5xx: "Solo 5xx (Caídas)", filter4xx: "Solo 4xx", filterPost: "Mutaciones (POST/PUT)",
-                emptyState: "✅ Todo limpio. No se han registrado errores.",
-                totalErrors: "Total Errores:",
+                filterAll: "Todos", filter5xx: "Solo 5xx", filter4xx: "Solo 4xx", filterPost: "Mutaciones",
+                emptyState: "✅ Todo limpio. No se han registrado errores.", totalErrors: "Total Errores:",
                 chartClient: "Cliente (4xx)", chartServer: "Servidor (5xx)",
                 btnTicket: "📝 Ticket", btnCopy: "Copiar", btnCopied: "¡Hecho!",
-                times: "veces", aiInsightTitle: "Sugerencia de IA",
-                checklistTitle: "📋 Tareas Recomendadas (Priorizado)",
-                loadingTasks: "Sincronizando plan de acción con DeepSeek...",
-                emptyChecklist: "✨ ¡Cero tareas activas! Backend en perfecto estado.",
-                actionLabel: "Acción:"
+                times: "veces", aiInsightTitle: "Sugerencia de IA", checklistTitle: "📋 Tareas Recomendadas",
+                emptyChecklist: "✨ ¡Cero tareas activas! Backend SQL en perfecto estado.", actionLabel: "Acción:"
             },
             en: {
-                soundOn: "Sound ON", soundOff: "Sound OFF", autoSync: "Auto-sync", exportCsv: "Export CSV",
-                searchPlaceholder: "Filter by endpoint or error message...",
-                filterAll: "All", filter5xx: "5xx Only (Crashes)", filter4xx: "4xx Only", filterPost: "Mutations (POST/PUT)",
-                emptyState: "✅ All clear. No errors registered.",
-                totalErrors: "Total Errors:",
+                soundOn: "Sound ON", soundOff: "Sound OFF", exportCsv: "Export CSV",
+                searchPlaceholder: "Filter by endpoint or error...",
+                filterAll: "All", filter5xx: "5xx Only", filter4xx: "4xx Only", filterPost: "Mutations",
+                emptyState: "✅ All clear. No errors registered.", totalErrors: "Total Errors:",
                 chartClient: "Client (4xx)", chartServer: "Server (5xx)",
                 btnTicket: "📝 Ticket", btnCopy: "Copy", btnCopied: "Done!",
-                times: "times", aiInsightTitle: "AI Insight",
-                checklistTitle: "📋 Recommended Tasks (Prioritized)",
-                loadingTasks: "Synchronizing action plan with DeepSeek...",
-                emptyChecklist: "✨ Zero active tasks! Perfect backend condition.",
-                actionLabel: "Action:"
+                times: "times", aiInsightTitle: "AI Insight", checklistTitle: "📋 Recommended Tasks",
+                emptyChecklist: "✨ Zero active tasks! Perfect SQL backend.", actionLabel: "Action:"
             }
         };
 
@@ -216,96 +191,80 @@
             currentLang = currentLang === 'es' ? 'en' : 'es';
             localStorage.setItem('revel_lang', currentLang);
             applyLanguage();
-            if (lastGroupedLogs) renderDashboard(lastGroupedLogs);
-            if (errorChart) updateChart(lastParsedLogs);
-            refreshAIChecklist();
+            renderDashboard(lastGroupedLogs);
+            updateChart(rawLogsArray);
         }
 
         function applyLanguage() {
             const dict = i18n[currentLang];
             langBtn.innerText = currentLang === 'es' ? '🌐 English' : '🌐 Español';
-            
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (dict[key]) el.innerText = dict[key];
-            });
-            document.querySelectorAll('[data-i18n-ph]').forEach(el => {
-                const key = el.getAttribute('data-i18n-ph');
-                if (dict[key]) el.placeholder = dict[key];
-            });
-            
-            const soundSpan = document.querySelector('#soundBtn span');
-            if (soundSpan) soundSpan.innerText = soundEnabled ? dict.soundOn : dict.soundOff;
+            document.querySelectorAll('[data-i18n]').forEach(el => el.innerText = dict[el.getAttribute('data-i18n')]);
+            document.querySelectorAll('[data-i18n-ph]').forEach(el => el.placeholder = dict[el.getAttribute('data-i18n-ph')]);
         }
-
         langBtn.addEventListener('click', toggleLanguage);
 
         // ==========================================
-        // EXPORTACIÓN CSV
+        // WEBSOCKETS MAGIA (El reemplazo del setInterval)
         // ==========================================
-        document.getElementById('exportCsvBtn').addEventListener('click', () => {
-            if (!lastParsedLogs || lastParsedLogs.length === 0) return;
-            
-            let csv = "Timestamp,Status,Method,Endpoint,Error,AI_Fix\n";
-            lastParsedLogs.forEach(log => {
-                const safeUrl = log.url.replace(/"/g, '""');
-                const safeErr = log.appError.replace(/"/g, '""');
-                const safeFix = log.aiFix ? log.aiFix.replace(/"/g, '""') : '';
-                csv += `"${log.tsStr}","${log.status}","${log.method}","${safeUrl}","${safeErr}","${safeFix}"\n`;
-            });
-            
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `revel_ops_export_${new Date().toISOString().slice(0,10)}.csv`;
-            a.click();
+        const socket = io();
+        let rawLogsArray = [];
+        let lastGroupedLogs = [];
+
+        // Conexión inicial (carga el historial rápido de SQL)
+        socket.on('initial_logs', (logsFromDb) => {
+            rawLogsArray = logsFromDb.reverse(); // El más viejo primero para el procesado cronológico
+            processAndRenderLogs();
         });
 
+        // Evento en tiempo real (entra un error milisegundos después de que la IA lo procesa)
+        socket.on('new_log', (newLog) => {
+            rawLogsArray.push(newLog);
+            if(rawLogsArray.length > 300) rawLogsArray.shift(); // Evitar RAM infinita en el frontend
+            processAndRenderLogs();
+            playDing();
+        });
+
+        // Evento asíncrono para la checklist
+        socket.on('update_checklist', (tasks) => {
+            renderChecklist(tasks);
+        });
+
+        socket.on('connect', () => { document.getElementById('wsIndicator').style.color = '#10b981'; });
+        socket.on('disconnect', () => { document.getElementById('wsIndicator').style.color = '#ef4444'; });
+
         // ==========================================
-        // CORE DASHBOARD LOGIC
+        // PROCESADO DE OBJETOS DB -> UI
+        // ==========================================
+        function processAndRenderLogs() {
+            updateChart(rawLogsArray);
+
+            const grouped = {};
+            rawLogsArray.forEach(log => {
+                const signature = `${log.method}_${log.url}_${log.status}_${(log.error_real||'').substring(0, 40)}`;
+                if(!grouped[signature]) {
+                    grouped[signature] = { ...log, count: 1, latestTs: log.timestamp };
+                } else {
+                    grouped[signature].count++;
+                    if(new Date(log.timestamp) > new Date(grouped[signature].latestTs)) {
+                        grouped[signature].latestTs = log.timestamp;
+                    }
+                    if (log.suggested_fix) grouped[signature].suggested_fix = log.suggested_fix;
+                    if (log.is_anomaly) grouped[signature].is_anomaly = log.is_anomaly;
+                }
+            });
+
+            lastGroupedLogs = Object.values(grouped).sort((a,b) => new Date(b.latestTs) - new Date(a.latestTs));
+            renderDashboard(lastGroupedLogs);
+        }
+
+        // ==========================================
+        // RENDERIZADO VISUAL
         // ==========================================
         const dashboard = document.getElementById('dashboard');
         const searchInput = document.getElementById('searchInput');
         const filterBtns = document.querySelectorAll('.filter-btn');
-        const soundBtn = document.getElementById('soundBtn');
-        
-        let lastLogContent = ""; 
         let currentFilter = "all";
-        let soundEnabled = false;
-        let lastKnownErrorCount = -1;
-        let errorChart = null;
-        let lastGroupedLogs = null;
-        let lastParsedLogs = [];
-        let audioCtx = null;
 
-        // --- SISTEMA DE SONIDO ---
-        soundBtn.addEventListener('click', () => {
-            soundEnabled = !soundEnabled;
-            soundBtn.className = soundEnabled ? 'btn-header sound-toggle active' : 'btn-header sound-toggle';
-            document.querySelector('#soundBtn span').innerText = soundEnabled ? i18n[currentLang].soundOn : i18n[currentLang].soundOff;
-            
-            if(soundEnabled) {
-                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                if (audioCtx.state === 'suspended') audioCtx.resume();
-                playDing();
-            }
-        });
-
-        function playDing() {
-            if(!soundEnabled || !audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.type = 'triangle'; 
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
-            osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1); 
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
-            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
-        }
-
-        // --- FILTROS ---
         searchInput.addEventListener('input', applyFilters);
         filterBtns.forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -333,84 +292,6 @@
             });
         }
 
-        // --- FETCH Y PARSEO ---
-        async function fetchLogs() {
-            try {
-                const response = await fetch('/api/logs');
-                if (!response.ok) return;
-                
-                const text = await response.text();
-                if (text === lastLogContent) return; 
-                lastLogContent = text;
-                
-                processLogData(text);
-                applyFilters(); 
-            } catch (err) {
-                console.error("Servidor inalcanzable.");
-            }
-        }
-
-        function processLogData(text) {
-            const blocks = text.split(/────────────────────────────────────────────────────────────────────────/).filter(b => b.trim().length > 10);
-            let parsedLogs = [];
-
-            blocks.forEach(block => {
-                const tsMatch = block.match(/TIMESTAMP\s*:\s*(.*)/);
-                const stMatch = block.match(/STATUS\s*:\s*(.*)/);
-                const mtMatch = block.match(/METHOD\s*:\s*(.*)/);
-                const urlMatch = block.match(/URL\s*:\s*(.*)/);
-                const errMatch = block.match(/APP ERROR\s*:\s*([\s\S]*?)(?=\n\s*FIX SUGGEST|$)/);
-                const fixMatch = block.match(/FIX SUGGEST\s*:\s*💡\s*([\s\S]*)/);
-
-                if (!tsMatch || !stMatch || !mtMatch || !errMatch) return;
-
-                let aiInsightText = fixMatch ? fixMatch[1].trim() : null;
-                if (aiInsightText && aiInsightText.includes('No hay sugerencia')) aiInsightText = null;
-
-                parsedLogs.push({
-                    tsStr: tsMatch[1].trim(),
-                    status: stMatch[1].trim(),
-                    method: mtMatch[1].trim().toUpperCase(),
-                    url: urlMatch ? urlMatch[1].trim() : '/',
-                    appError: stripAnsi(errMatch[1].trim()),
-                    aiFix: aiInsightText
-                });
-            });
-
-            lastParsedLogs = parsedLogs;
-
-            const totalErrorsNow = parsedLogs.length;
-            if (lastKnownErrorCount === -1) {
-                lastKnownErrorCount = totalErrorsNow;
-            } else if (totalErrorsNow > lastKnownErrorCount) {
-                playDing();
-                lastKnownErrorCount = totalErrorsNow;
-            }
-
-            updateChart(parsedLogs);
-
-            const grouped = {};
-            parsedLogs.forEach(log => {
-                const signature = `${log.method}_${log.url}_${log.status}_${log.appError.substring(0, 40)}`;
-                if(!grouped[signature]) {
-                    grouped[signature] = { ...log, count: 1, latestTs: log.tsStr };
-                } else {
-                    grouped[signature].count++;
-                    if(new Date(log.tsStr) > new Date(grouped[signature].latestTs)) {
-                        grouped[signature].latestTs = log.tsStr;
-                    }
-                    if (log.aiFix) {
-                        grouped[signature].aiFix = log.aiFix;
-                    }
-                }
-            });
-
-            const sortedGroups = Object.values(grouped).sort((a,b) => new Date(b.latestTs) - new Date(a.latestTs));
-            lastGroupedLogs = sortedGroups;
-            renderDashboard(sortedGroups);
-        }
-
-        // --- RENDERIZADO DEL HTML ---
         function renderDashboard(groupedLogs) {
             dashboard.innerHTML = '';
             let total = 0;
@@ -427,21 +308,22 @@
                 const methodClass = `method-${log.method}` || 'method-ERROR';
                 total += log.count;
 
-                const copyText = `[${log.status}] ${log.method} ${log.url}\nError: ${log.appError}`;
-                const ticketMarkdown = `🚨 *Bug Report: HTTP ${log.status}*\n* **Endpoint:** \`${log.method} ${log.url}\`\n* **Última vez:** ${formatDate(log.latestTs)}\n* **Ocurrencias:** ${log.count} ${dict.times}\n\n*Detalles del Stacktrace:*\n\`\`\`text\n${log.appError}\n\`\`\``;
-                const searchableData = `${log.url} ${log.appError} ${log.status} ${log.method}`;
+                const copyText = `[${log.status}] ${log.method} ${log.url}\nError: ${log.error_real}`;
+                const ticketMarkdown = `🚨 *Bug Report: HTTP ${log.status}*\n* **Endpoint:** \`${log.method} ${log.url}\`\n* **Última vez:** ${formatDate(log.latestTs)}\n* **Ocurrencias:** ${log.count}\n\n*Detalles del Stacktrace:*\n\`\`\`text\n${log.error_real}\n\`\`\``;
+                const searchableData = `${log.url} ${log.error_real} ${log.status} ${log.method}`;
                 
-                const stackHtml = log.count > 1 ? `<div class="stack-badge">🔥 x${log.count} ${dict.times}</div>` : '';
+                let badgesHtml = log.count > 1 ? `<div class="stack-badge">🔥 x${log.count} ${dict.times}</div>` : '';
+                if (log.is_anomaly) badgesHtml += `<div class="stack-badge" style="background:#dc2626; border-color:#991b1b;">🚨 ANOMALÍA</div>`;
                 
-                const aiHtml = log.aiFix ? `
+                const aiHtml = log.suggested_fix ? `
                     <div class="ai-insight">
                         <strong>✨ ${dict.aiInsightTitle}</strong>
-                        ${escapeHtml(log.aiFix)}
+                        ${escapeHtml(log.suggested_fix)}
                     </div>
                 ` : '';
 
                 const card = document.createElement('div');
-                card.className = 'card';
+                card.className = `card ${log.is_anomaly ? 'anomaly' : ''}`;
                 card.setAttribute('data-searchable', searchableData);
                 card.setAttribute('data-status', log.status);
                 card.setAttribute('data-method', log.method);
@@ -450,7 +332,7 @@
                     <div class="card-header">
                         <div style="display:flex; gap: 8px; align-items:center;">
                             <span class="badge ${statusClass}">HTTP ${log.status}</span>
-                            ${stackHtml}
+                            ${badgesHtml}
                         </div>
                         <div style="text-align: right;">
                             <span class="badge ${methodClass}">${log.method}</span><br>
@@ -464,55 +346,49 @@
                             <button class="action-btn btn-ticket" onclick="copyData(this)" data-copy="${escapeHtml(ticketMarkdown)}">${dict.btnTicket}</button>
                             <button class="action-btn" onclick="copyData(this)" data-copy="${escapeHtml(copyText)}">${dict.btnCopy}</button>
                         </div>
-                        <div class="error-box">${escapeHtml(log.appError)}</div>
+                        <div class="error-box">${escapeHtml(log.error_real)}</div>
                     </div>
                 `;
                 dashboard.appendChild(card);
             });
             document.getElementById('countTotal').innerText = `${dict.totalErrors} ${total}`;
+            applyFilters();
         }
 
-        // --- FETCH Y RENDER DE CHECKLIST IA ---
-        async function refreshAIChecklist() {
+        function renderChecklist(tasks) {
             const dict = i18n[currentLang];
-            try {
-                const response = await fetch('/api/checklist');
-                const tasks = await response.json();
-                const container = document.getElementById('checklistTasks');
-                
-                if (!tasks || tasks.length === 0) {
-                    container.innerHTML = `<p style="color: #10b981; font-size: 0.85rem; text-align: center; margin: 2rem 0;">${dict.emptyChecklist}</p>`;
-                    return;
-                }
-
-                container.innerHTML = tasks.map(task => `
-                    <div class="task-item prio-${task.priority}">
-                        <input type="checkbox" class="task-cb" onchange="this.parentElement.style.opacity = this.checked ? 0.35 : 1; this.parentElement.style.transform = this.checked ? 'scale(0.98)' : 'none'">
-                        <div class="task-body">
-                            <div class="task-title-line">
-                                <h4 class="task-t">${escapeHtml(task.title)}</h4>
-                                <div style="display: flex; gap: 4px;">
-                                    <span class="mini-badge mb-prio">${escapeHtml(task.priority)}</span>
-                                    <span class="mini-badge mb-count">x${task.count}</span>
-                                </div>
-                            </div>
-                            <div class="task-meta-route">📍 ${dict.endpointLine || 'Endpoint:'} ${escapeHtml(task.endpoint)}</div>
-                            <p class="task-instruction">🔧 <b>${dict.actionLabel}:</b> ${escapeHtml(task.action)}</p>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (err) {
-                console.error("Error sincronizando checklist.");
+            const container = document.getElementById('checklistTasks');
+            
+            if (!tasks || tasks.length === 0) {
+                container.innerHTML = `<p style="color: #10b981; font-size: 0.85rem; text-align: center; margin: 2rem 0;">${dict.emptyChecklist}</p>`;
+                return;
             }
+
+            container.innerHTML = tasks.map(task => `
+                <div class="task-item prio-${task.priority}">
+                    <input type="checkbox" class="task-cb" onchange="this.parentElement.style.opacity = this.checked ? 0.35 : 1; this.parentElement.style.transform = this.checked ? 'scale(0.98)' : 'none'">
+                    <div class="task-body">
+                        <div class="task-title-line">
+                            <h4 class="task-t">${escapeHtml(task.title)}</h4>
+                            <div style="display: flex; gap: 4px;">
+                                <span class="mini-badge mb-prio">${escapeHtml(task.priority)}</span>
+                                <span class="mini-badge mb-count">x${task.count}</span>
+                            </div>
+                        </div>
+                        <div class="task-meta-route">📍 ${escapeHtml(task.endpoint)}</div>
+                        <p class="task-instruction">🔧 <b>${dict.actionLabel}:</b> ${escapeHtml(task.action)}</p>
+                    </div>
+                </div>
+            `).join('');
         }
 
-        // --- LÓGICA DE GRÁFICA (Chart.js) ---
-        function updateChart(parsedLogs) {
+        let errorChart = null;
+        function updateChart(logsArray) {
             const timeBuckets = {};
             const dict = i18n[currentLang];
             
-            parsedLogs.forEach(log => {
-                const d = new Date(log.tsStr);
+            logsArray.forEach(log => {
+                const d = new Date(log.timestamp);
                 if(isNaN(d)) return;
                 const minStr = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
                 if(!timeBuckets[minStr]) timeBuckets[minStr] = { e4xx: 0, e5xx: 0 };
@@ -526,21 +402,14 @@
 
             if(!errorChart) {
                 const ctx = document.getElementById('errorChart').getContext('2d');
-                Chart.defaults.color = '#94a3b8';
-                Chart.defaults.font.family = 'Inter';
-                
+                Chart.defaults.color = '#94a3b8'; Chart.defaults.font.family = 'Inter';
                 errorChart = new Chart(ctx, {
                     type: 'bar',
                     data: { labels, datasets: [
                         { label: dict.chartClient, data: data4xx, backgroundColor: '#fbbf24', borderRadius: 4, stacked: true },
                         { label: dict.chartServer, data: data5xx, backgroundColor: '#ef4444', borderRadius: 4, stacked: true }
                     ]},
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        interaction: { intersect: false, mode: 'index' },
-                        plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 12 } } },
-                        scales: { x: { stacked: true, grid: { color: '#27272a' } }, y: { stacked: true, grid: { color: '#27272a' }, beginAtZero: true, ticks: { stepSize: 1 } } }
-                    }
+                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } } }
                 });
             } else {
                 errorChart.data.labels = labels;
@@ -552,31 +421,57 @@
             }
         }
 
-        // --- UTILIDADES ---
+        // ==========================================
+        // EXPORTACIÓN Y SONIDO (Intactos)
+        // ==========================================
+        let soundEnabled = false;
+        let audioCtx = null;
+        const soundBtn = document.getElementById('soundBtn');
+
+        soundBtn.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            soundBtn.className = soundEnabled ? 'btn-header sound-toggle active' : 'btn-header sound-toggle';
+            applyLanguage();
+            if(soundEnabled) {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                playDing();
+            }
+        });
+
+        function playDing() {
+            if(!soundEnabled || !audioCtx) return;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+            osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1); 
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
+        }
+
+        document.getElementById('exportCsvBtn').addEventListener('click', () => {
+            if (rawLogsArray.length === 0) return;
+            let csv = "Timestamp,Status,Method,Endpoint,Error,AI_Fix\n";
+            rawLogsArray.forEach(log => {
+                csv += `"${log.timestamp}","${log.status}","${log.method}","${log.url}","${(log.error_real||'').replace(/"/g, '""')}","${(log.suggested_fix||'').replace(/"/g, '""')}"\n`;
+            });
+            const a = document.createElement('a');
+            a.href = window.URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+            a.download = `revel_sql_export.csv`;
+            a.click();
+        });
+
         function copyData(btn) {
-            const text = btn.getAttribute('data-copy');
-            navigator.clipboard.writeText(text).then(() => {
+            navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(() => {
                 const originalText = btn.innerText;
-                btn.innerText = i18n[currentLang].btnCopied;
-                btn.style.background = "#10b981";
-                btn.style.color = "white";
-                btn.style.closeBorder = "none";
+                btn.innerText = i18n[currentLang].btnCopied; btn.style.background = "#10b981"; btn.style.color = "white";
                 setTimeout(() => { btn.innerText = originalText; btn.style.background = ""; btn.style.color = ""; }, 2000);
             });
         }
+        function escapeHtml(text) { return (text||'').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+        function formatDate(iso) { try { const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) + ' (' + d.toLocaleDateString('es-ES', {day: '2-digit', month: 'short'}) + ')'; } catch { return iso; } }
 
-        function stripAnsi(text) { return text.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[\d+m/g, '').replace(/\[0m/g, ''); }
-        function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
-        function formatDate(isoString) { try { const d = new Date(isoString); if (isNaN(d.getTime())) return isoString; return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) + ' (' + d.toLocaleDateString('es-ES', {day: '2-digit', month: 'short'}) + ')'; } catch(e) { return isoString; } }
-
-        // Boot
         applyLanguage();
-        fetchLogs();
-        refreshAIChecklist();
-        
-        // Bucles independientes de actualización dinámica
-        setInterval(fetchLogs, 2000);
-        setInterval(refreshAIChecklist, 4000); // Sincroniza la sección checklist cada 4s
     </script>
 </body>
 </html>
