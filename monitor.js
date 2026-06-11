@@ -189,8 +189,7 @@ function checkAnomaly(endpoint) {
 const TRIGGER_REGEX = /(status=(4\d\d|5\d\d)|\((4\d\d|5\d\d)\)|panic|Error \d+|duplicate entry|runtime error|mysql|sql:|invalid syntax|detached)/i;
 const SQL_NOISE_REGEX = /sql:.*(?:register|ping|driver|open|pool|acquire)/i;
 const TRANSIENT_REGEX = /timeout|connection refused|EOF|context canceled|deadline exceeded|reset by peer|broken pipe|no such host/i;
-const THREAT_NOISE = ['.env', '.git', '.bak', '.php', 'wp-admin', 'wp-includes', '.yaml', '.sql', '.yml', '.config', '.local'];
-const SAFE_NOISE   = ['.txt', '.ico', '.png', '.jpg', '.css', '.js', '.svg'];
+const THREAT_NOISE = ['.env', '.git', '.bak', '.php', 'wp-admin', 'wp-includes', 'wp-content', '.yaml', '.sql', '.yml', '.config', '.local', '.aws', '.kube', '.npmrc', 'credentials', 'debug.log'];const SAFE_NOISE   = ['.txt', '.ico', '.png', '.jpg', '.css', '.js', '.svg'];
 
 function getPathCategory(url) {
     const lower = url?.toLowerCase() || '';
