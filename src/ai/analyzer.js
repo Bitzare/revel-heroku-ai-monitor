@@ -12,8 +12,8 @@ const KINDS = ['backend_bug', 'client_error', 'expected', 'infrastructure', 'dat
 const ANALYSIS_SCHEMA = {
     type: 'object',
     properties: {
-        title: { type: 'string', description: 'Título corto en español, máx. 90 caracteres' },
-        summary: { type: 'string', description: 'Qué está pasando, 1-2 frases en español' },
+        title: { type: 'string', description: 'Título corto, máx. 90 caracteres' },
+        summary: { type: 'string', description: 'Qué está pasando, 1-2 frases' },
         root_cause: { type: 'string', description: 'Causa raíz técnica, citando función/línea si se ve en el código' },
         exact_error: { type: 'string', description: 'Copia literal del mensaje de error de los logs' },
         kind: { type: 'string', enum: KINDS },
@@ -23,7 +23,7 @@ const ANALYSIS_SCHEMA = {
             properties: { file: { type: 'string' }, function: { type: 'string' }, line: { type: 'integer' } },
             required: ['file', 'function', 'line'],
         },
-        fix: { type: 'string', description: 'Solución concreta en español' },
+        fix: { type: 'string', description: 'Solución concreta' },
         fix_steps: { type: 'array', items: { type: 'string' }, maxItems: 5 },
         confidence: { type: 'number', minimum: 0, maximum: 1 },
     },
@@ -34,13 +34,17 @@ const SYSTEM_PROMPT = `Eres un SRE senior de guardia para el backend Go de Revel
 Recibes evidencias de logs de producción y el código fuente relevante. Tu trabajo: explicar el fallo con precisión y proponer la corrección.
 
 Reglas:
-- Responde SIEMPRE en español, salvo identificadores de código y mensajes de error.
+- Responde SIEMPRE en {LANG}, salvo identificadores de código y mensajes de error.
 - "exact_error" debe ser una copia literal de un mensaje que aparezca en las evidencias. Si no hay mensaje de error explícito, copia la línea más relevante.
 - No inventes funciones, ficheros ni líneas: usa solo lo que ves en el código que se te da. Si no lo sabes, deja "file" y "function" vacíos y "line" a 0, y baja "confidence".
 - Distingue bien: un 401 por token ausente/caducado o un 404 de un recurso inexistente suelen ser "expected" o "client_error", no bugs. Un handler que devuelve un status incorrecto (p.ej. 401 cuando la consulta SQL no encuentra filas) SÍ es "backend_bug".
 - "sql: no rows in result set" tratado como error 4xx/5xx suele indicar que falta manejar sql.ErrNoRows.
 - Si las evidencias indican caída de infraestructura (redis, timeouts de red, H12, R14) no culpes al código del handler.
 - "confidence" refleja cuánto respaldan las evidencias tu diagnóstico (0.9+ solo si el código muestra claramente la causa).`;
+
+function systemPrompt(lang) {
+    return SYSTEM_PROMPT.replace('{LANG}', lang === 'en' ? 'inglés (English)' : 'español');
+}
 
 class Analyzer extends EventEmitter {
     constructor({ store, code, client, cfg, autofix = null }) {
@@ -100,7 +104,7 @@ class Analyzer extends EventEmitter {
             const ctx = this.buildContext(issue);
             if (ctx.blame) this.store.updateIssue(id, { blame: ctx.blame });
             const { data, meta } = await this.client.chatJson(
-                [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: ctx.prompt }],
+                [{ role: 'system', content: systemPrompt(this.cfg.aiLanguage) }, { role: 'user', content: ctx.prompt }],
                 ANALYSIS_SCHEMA,
             );
             const analysis = this.validate(data, ctx);
@@ -215,4 +219,4 @@ class Analyzer extends EventEmitter {
 // handlers/<pkg> deducido del handler registrado (si lo hay) para desambiguar nombres repetidos.
 function routeDir(issue) { return issue.handler_dir || null; }
 
-module.exports = { Analyzer, ANALYSIS_SCHEMA, SYSTEM_PROMPT, KINDS };
+module.exports = { Analyzer, ANALYSIS_SCHEMA, SYSTEM_PROMPT, KINDS, systemPrompt };

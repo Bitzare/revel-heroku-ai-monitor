@@ -5,6 +5,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { relativeTime } from "@/lib/format"
+import { useI18n } from "@/lib/i18n"
 import { PERIODS, type PeriodKey } from "@/lib/labels"
 import { cn } from "@/lib/utils"
 import { useApp } from "./app-context"
@@ -13,16 +14,17 @@ import { routeFor } from "./routes"
 
 function PeriodPicker() {
   const { period, setPeriod } = useApp()
+  const { t } = useI18n()
   return (
     <>
       {/* En móvil, desplegable: los seis botones no caben a 390 px */}
       <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-        <SelectTrigger className="w-44 bg-card sm:hidden" aria-label="Periodo"><SelectValue /></SelectTrigger>
-        <SelectContent>{PERIODS.map((p) => <SelectItem key={p.key} value={p.key}>{p.menu}</SelectItem>)}</SelectContent>
+        <SelectTrigger className="w-44 bg-card sm:hidden" aria-label={t("Periodo")}><SelectValue /></SelectTrigger>
+        <SelectContent>{PERIODS.map((p) => <SelectItem key={p.key} value={p.key}>{t(p.menu)}</SelectItem>)}</SelectContent>
       </Select>
       <ToggleGroup type="single" variant="outline" size="sm" value={period} onValueChange={(v) => v && setPeriod(v as PeriodKey)}
-        aria-label="Periodo" className="hidden bg-card sm:flex">
-        {PERIODS.map((p) => <ToggleGroupItem key={p.key} value={p.key} className="px-3">{p.label}</ToggleGroupItem>)}
+        aria-label={t("Periodo")} className="hidden bg-card sm:flex">
+        {PERIODS.map((p) => <ToggleGroupItem key={p.key} value={p.key} className="px-3">{t(p.label)}</ToggleGroupItem>)}
       </ToggleGroup>
     </>
   )
@@ -30,15 +32,17 @@ function PeriodPicker() {
 
 function LiveIndicator() {
   const { connected, lastEventAt } = useApp()
+  const { t } = useI18n()
   const [, tick] = useState(0)
-  useEffect(() => { const t = setInterval(() => tick((x) => x + 1), 5000); return () => clearInterval(t) }, [])
-  const text = !connected ? "Sin conexión con el monitor" : lastEventAt ? `En vivo, último dato ${relativeTime(new Date(lastEventAt).toISOString())}` : "En vivo, esperando datos"
+  useEffect(() => { const i = setInterval(() => tick((x) => x + 1), 5000); return () => clearInterval(i) }, [])
+  const text = !connected ? t("Sin conexión con el monitor")
+    : lastEventAt ? t("En vivo, último dato {when}", { when: relativeTime(new Date(lastEventAt).toISOString()) }) : t("En vivo, esperando datos")
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span className="inline-flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-[13px] text-muted-foreground" role="status">
           <span className={cn("size-2 rounded-full", connected ? "bg-good" : "bg-bad")} aria-hidden="true" />
-          {connected ? "En vivo" : "Desconectado"}
+          {connected ? t("En vivo") : t("Desconectado")}
         </span>
       </TooltipTrigger>
       <TooltipContent>{text}</TooltipContent>
@@ -49,7 +53,8 @@ function LiveIndicator() {
 export function AppLayout() {
   const { pathname } = useLocation()
   const route = routeFor(pathname)
-  const title = route?.title ?? ""
+  const { t } = useI18n()
+  const title = route?.title ? t(route.title) : ""
   const { health } = useApp()
 
   useEffect(() => {

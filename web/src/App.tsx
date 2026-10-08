@@ -5,6 +5,7 @@ import { AppLayout } from "@/app/app-layout"
 import { PageSkeleton } from "@/components/dashboard/indicators"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { I18nProvider } from "@/lib/i18n"
 
 // Cada página en su propio chunk.
 const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
@@ -21,6 +22,7 @@ const wrap = (el: React.ReactNode) => <Suspense fallback={<PageSkeleton />}>{el}
 
 export default function App() {
   return (
+    <I18nProvider>
     <TooltipProvider>
       <AppProvider>
         <BrowserRouter>
@@ -40,5 +42,6 @@ export default function App() {
       </AppProvider>
       <Toaster position="bottom-center" />
     </TooltipProvider>
+    </I18nProvider>
   )
 }

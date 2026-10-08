@@ -4,6 +4,7 @@ import {
   CircleAlert, CircleCheck, CircleDashed, CircleDot, CircleHelp, Eye, EyeOff, Loader2, Minus, OctagonAlert, Stethoscope, TriangleAlert, Info,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { useI18n } from "@/lib/i18n"
 import { SEVERITY_LABEL, STATE_LABEL } from "@/lib/labels"
 import type { AnalysisState, Health, IssueState, Severity } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -17,10 +18,11 @@ const SEV_STYLE: Record<Severity, { cls: string; Icon: typeof Info }> = {
 }
 
 export function SeverityBadge({ severity, className }: { severity: Severity; className?: string }) {
+  const { t } = useI18n()
   const { cls, Icon } = SEV_STYLE[severity]
   return (
     <Badge variant="secondary" className={cn("gap-1 border-0 font-semibold", cls, className)}>
-      <Icon className="size-3.5" aria-hidden="true" />{SEVERITY_LABEL[severity]}
+      <Icon className="size-3.5" aria-hidden="true" />{t(SEVERITY_LABEL[severity])}
     </Badge>
   )
 }
@@ -32,23 +34,25 @@ export const severityBorder = (s: Severity) =>
 const STATE_ICON: Record<IssueState, typeof Info> = { open: CircleDot, ack: Eye, resolved: CircleCheck, ignored: EyeOff }
 
 export function StateBadge({ state }: { state: IssueState }) {
+  const { t } = useI18n()
   const Icon = STATE_ICON[state]
   return (
     <span className={cn("inline-flex items-center gap-1.5 text-[13px]", state === "resolved" ? "text-good" : state === "open" ? "text-foreground" : "text-muted-foreground")}>
-      <Icon className="size-3.5" aria-hidden="true" />{STATE_LABEL[state]}
+      <Icon className="size-3.5" aria-hidden="true" />{t(STATE_LABEL[state])}
     </span>
   )
 }
 
 export function AnalysisBadge({ state, hasPatch }: { state: AnalysisState; hasPatch?: boolean }) {
+  const { t } = useI18n()
   if (state === "queued" || state === "running") {
-    return <span className="inline-flex items-center gap-1.5 text-[13px] text-warn"><Loader2 className="size-3.5 animate-spin" aria-hidden="true" />{state === "running" ? "Analizando" : "En cola"}</span>
+    return <span className="inline-flex items-center gap-1.5 text-[13px] text-warn"><Loader2 className="size-3.5 animate-spin" aria-hidden="true" />{state === "running" ? t("Analizando") : t("En cola")}</span>
   }
   if (state === "done") {
-    return <span className="inline-flex items-center gap-1.5 text-[13px] text-good"><Stethoscope className="size-3.5" aria-hidden="true" />{hasPatch ? "Con parche" : "Diagnosticada"}</span>
+    return <span className="inline-flex items-center gap-1.5 text-[13px] text-good"><Stethoscope className="size-3.5" aria-hidden="true" />{hasPatch ? t("Con parche") : t("Diagnosticada")}</span>
   }
-  if (state === "failed") return <span className="inline-flex items-center gap-1.5 text-[13px] text-bad"><CircleAlert className="size-3.5" aria-hidden="true" />Falló</span>
-  return <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground"><CircleDashed className="size-3.5" aria-hidden="true" />Sin analizar</span>
+  if (state === "failed") return <span className="inline-flex items-center gap-1.5 text-[13px] text-bad"><CircleAlert className="size-3.5" aria-hidden="true" />{t("Falló")}</span>
+  return <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground"><CircleDashed className="size-3.5" aria-hidden="true" />{t("Sin analizar")}</span>
 }
 
 export function MethodBadge({ method }: { method: string | null }) {
@@ -64,10 +68,11 @@ const SERVICE: Record<Health["status"], { text: string; long: string; cls: strin
 }
 
 export function ServiceStatus({ status, compact }: { status: Health["status"]; compact?: boolean }) {
+  const { t } = useI18n()
   const s = SERVICE[status]
   return (
     <span className={cn("inline-flex items-center gap-1.5 font-semibold", s.cls)}>
-      <s.Icon className="size-4" aria-hidden="true" />{compact ? s.text : s.long}
+      <s.Icon className="size-4" aria-hidden="true" />{t(compact ? s.text : s.long)}
     </span>
   )
 }

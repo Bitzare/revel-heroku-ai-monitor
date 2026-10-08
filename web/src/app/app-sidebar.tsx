@@ -6,6 +6,8 @@ import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from "@/components/ui/sidebar"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useI18n, type Lang } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { useApp } from "./app-context"
 import { ROUTES, type RouteMeta } from "./routes"
@@ -14,6 +16,7 @@ function NavItems({ items }: { items: RouteMeta[] }) {
   const { pathname } = useLocation()
   const { setOpenMobile } = useSidebar()
   const { health } = useApp()
+  const { t } = useI18n()
   const openHot = health ? health.criticalOpen + health.highOpen : 0
   return (
     <SidebarMenu>
@@ -25,7 +28,7 @@ function NavItems({ items }: { items: RouteMeta[] }) {
               className="h-10 data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground data-[active=true]:hover:bg-sidebar-primary/90">
               <NavLink to={r.path} onClick={() => setOpenMobile(false)}>
                 <r.icon />
-                <span>{r.nav ?? r.title}</span>
+                <span>{t(r.nav ?? r.title)}</span>
               </NavLink>
             </SidebarMenuButton>
             {r.path === "/incidencias" && openHot > 0 && (
@@ -39,6 +42,7 @@ function NavItems({ items }: { items: RouteMeta[] }) {
 }
 
 function Wordmark() {
+  const { t } = useI18n()
   return (
     <div className="flex items-center gap-2.5">
       <svg viewBox="0 0 32 32" className="size-8 shrink-0" aria-hidden="true">
@@ -47,7 +51,7 @@ function Wordmark() {
       </svg>
       <div className="flex flex-col leading-tight">
         <span className="text-[15px] font-bold tracking-tight">Revel Guardia</span>
-        <span className="text-xs text-muted-foreground">Monitor de producción</span>
+        <span className="text-xs text-muted-foreground">{t("Monitor de producción")}</span>
       </div>
     </div>
   )
@@ -55,6 +59,7 @@ function Wordmark() {
 
 export function AppSidebar() {
   const { health, theme, toggleTheme } = useApp()
+  const { t, lang, setLang } = useI18n()
   const main = ROUTES.filter((r) => r.group === "main")
   const ops = ROUTES.filter((r) => r.group === "ops")
   const ai = health?.ai
@@ -70,7 +75,7 @@ export function AppSidebar() {
           <SidebarGroupContent><NavItems items={main} /></SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Operación</SidebarGroupLabel>
+          <SidebarGroupLabel>{t("Operación")}</SidebarGroupLabel>
           <SidebarGroupContent><NavItems items={ops} /></SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
@@ -78,7 +83,7 @@ export function AppSidebar() {
       <SidebarFooter className="gap-3 border-t border-sidebar-border p-4">
         <dl className="flex flex-col gap-2 text-[13px]">
           <div className="flex items-center justify-between gap-2">
-            <dt className="text-muted-foreground">Servicio</dt>
+            <dt className="text-muted-foreground">{t("Servicio")}</dt>
             <dd><ServiceStatus status={health?.status ?? "unknown"} compact /></dd>
           </div>
           <div className="flex items-center justify-between gap-2">
@@ -86,17 +91,24 @@ export function AppSidebar() {
             <dd className="font-mono text-xs">{health?.app ?? "—"}</dd>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <dt className="text-muted-foreground">Modelo</dt>
+            <dt className="text-muted-foreground">{t("Modelo")}</dt>
             <dd className="flex items-center gap-1.5 font-mono text-xs">
               <span className={cn("size-1.5 rounded-full", !ai?.enabled ? "bg-muted-foreground" : ai.ok ? "bg-good" : "bg-bad")} aria-hidden="true" />
-              {ai?.enabled ? ai.model : "desactivado"}
+              {ai?.enabled ? ai.model : t("desactivado")}
             </dd>
           </div>
         </dl>
-        <Button variant="outline" size="sm" onClick={toggleTheme} className="justify-start">
-          {theme === "dark" ? <Sun /> : <Moon />}
-          {theme === "dark" ? "Tema claro" : "Tema oscuro"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <ToggleGroup type="single" variant="outline" size="sm" value={lang} onValueChange={(v) => v && setLang(v as Lang)}
+            aria-label={t("Idioma")} className="shrink-0">
+            <ToggleGroupItem value="es" className="px-2.5" aria-label="Español" title="Español">ES</ToggleGroupItem>
+            <ToggleGroupItem value="en" className="px-2.5" aria-label="English" title="English">EN</ToggleGroupItem>
+          </ToggleGroup>
+          <Button variant="outline" size="sm" onClick={toggleTheme} className="flex-1 justify-start">
+            {theme === "dark" ? <Sun /> : <Moon />}
+            {theme === "dark" ? t("Tema claro") : t("Tema oscuro")}
+          </Button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   )

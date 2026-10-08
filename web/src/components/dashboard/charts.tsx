@@ -5,6 +5,7 @@
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { bucketLabel, dateTime, ms, number } from "@/lib/format"
+import { useI18n } from "@/lib/i18n"
 import type { Stats } from "@/lib/types"
 
 const axis = { tickLine: false, axisLine: false, tickMargin: 8 } as const
@@ -42,13 +43,13 @@ function releaseMarks(stats: Stats) {
 }
 
 // ── Tráfico por tramo (apilado) ─────────────────────────────────────
-const trafficConfig = {
-  ok: { label: "Correctas (2xx/3xx)", color: "var(--chart-1)" },
-  err4: { label: "Errores de cliente (4xx)", color: "var(--chart-2)" },
-  err5: { label: "Errores de servidor (5xx y Heroku)", color: "var(--chart-3)" },
-} satisfies ChartConfig
-
 export function TrafficChart({ stats, className }: { stats: Stats; className?: string }) {
+  const { t, tn } = useI18n()
+  const trafficConfig = {
+    ok: { label: t("Correctas (2xx/3xx)"), color: "var(--chart-1)" },
+    err4: { label: t("Errores de cliente (4xx)"), color: "var(--chart-2)" },
+    err5: { label: t("Errores de servidor (5xx y Heroku)"), color: "var(--chart-3)" },
+  } satisfies ChartConfig
   const data = continuous(stats)
   const ticks = niceTicks(Math.max(1, ...data.map((d) => d.requests)))
   return (
@@ -62,7 +63,7 @@ export function TrafficChart({ stats, className }: { stats: Stats; className?: s
           content={<ChartTooltipContent valueFormatter={(v) => number(v)} className="min-w-56"
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload
-              return p ? `${dateTime(new Date(p.t).toISOString())} · ${number(p.requests)} peticiones` : ""
+              return p ? `${dateTime(new Date(p.t).toISOString())} · ${tn(p.requests, "{n} petición", "{n} peticiones")}` : ""
             }} />}
         />
         {/* 1px del color de la tarjeta separa los segmentos apilados */}
@@ -89,12 +90,12 @@ function isolatedDot(data: { p95: number | null; avgMs: number | null }[], key: 
 }
 
 // ── Latencia (p95 y media) ──────────────────────────────────────────
-const latencyConfig = {
-  p95: { label: "p95", color: "var(--chart-5)" },
-  avgMs: { label: "Media", color: "var(--chart-4)" },
-} satisfies ChartConfig
-
 export function LatencyChart({ stats, threshold, className }: { stats: Stats; threshold: number; className?: string }) {
+  const { t } = useI18n()
+  const latencyConfig = {
+    p95: { label: "p95", color: "var(--chart-5)" },
+    avgMs: { label: t("Promedio"), color: "var(--chart-4)" },
+  } satisfies ChartConfig
   const data = continuous(stats)
   const max = Math.max(threshold * 1.1, ...data.map((d) => d.p95 ?? 0))
   const ticks = niceTicks(max)
@@ -118,9 +119,9 @@ export function LatencyChart({ stats, threshold, className }: { stats: Stats; th
 }
 
 // ── Ocurrencias por categoría (barras horizontales, una serie) ─────
-const catConfig = { n: { label: "Ocurrencias", color: "var(--chart-5)" } } satisfies ChartConfig
-
 export function CategoryChart({ data, className }: { data: { label: string; n: number }[]; className?: string }) {
+  const { t } = useI18n()
+  const catConfig = { n: { label: t("Ocurrencias"), color: "var(--chart-5)" } } satisfies ChartConfig
   return (
     <ChartContainer config={catConfig} className={className} style={{ height: Math.max(80, data.length * 34) }}>
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 40, left: 0, bottom: 0 }} barCategoryGap="28%">
@@ -135,9 +136,9 @@ export function CategoryChart({ data, className }: { data: { label: string; n: n
 }
 
 // ── Actividad de una incidencia (barras por media hora) ────────────
-const actConfig = { n: { label: "Ocurrencias", color: "var(--chart-2)" } } satisfies ChartConfig
-
 export function ActivityChart({ histogram, className }: { histogram: Record<string, number>; className?: string }) {
+  const { t } = useI18n()
+  const actConfig = { n: { label: t("Ocurrencias"), color: "var(--chart-2)" } } satisfies ChartConfig
   const step = 30 * 60000
   const end = Math.floor(Date.now() / step) * step
   const data = Array.from({ length: 48 }, (_, i) => {

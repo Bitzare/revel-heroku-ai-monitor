@@ -222,7 +222,7 @@ function createServer(app) {
         return {
             app: cfg.appName, host: cfg.host, port: cfg.port, sources: cfg.sources,
             backendPath: cfg.backendPath, backendFound: app.code.files.size > 0, routes: app.routes.length, functions: app.code.funcs.length,
-            ai: { enabled: cfg.aiEnabled, url: cfg.ollamaUrl, model: cfg.model, numCtx: cfg.numCtx, timeoutMs: cfg.aiTimeoutMs, analyzeMinSeverity: cfg.analyzeMinSeverity, maxQueue: cfg.maxQueue },
+            ai: { enabled: cfg.aiEnabled, url: cfg.ollamaUrl, model: cfg.model, language: cfg.aiLanguage, numCtx: cfg.numCtx, timeoutMs: cfg.aiTimeoutMs, analyzeMinSeverity: cfg.analyzeMinSeverity, maxQueue: cfg.maxQueue },
             autofix: { mode: cfg.autofixMode, minConfidence: cfg.autofixMinConfidence, gofmt: !!app.autofix.gofmt },
             alerts: { n8nConfigured: !!cfg.n8nWebhookUrl, tokenConfigured: !!cfg.n8nWebhookToken, minSeverity: cfg.alertMinSeverity },
             ingest: { tokenConfigured: !!cfg.ingestToken, herokuApiTokenConfigured: !!cfg.herokuApiToken },

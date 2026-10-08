@@ -1,4 +1,5 @@
-// Textos de la interfaz para los valores que devuelve el monitor.
+// Textos de la interfaz para los valores que devuelve el monitor. Están en
+// español (la clave de traducción); se pasan por t() al pintarlos.
 
 import type { IssueState, Severity } from "./types"
 
@@ -10,6 +11,12 @@ export const sevRank = (s: Severity) => SEVERITY_ORDER.length - SEVERITY_ORDER.i
 
 export const STATE_LABEL: Record<IssueState, string> = {
   open: "Abierta", ack: "Reconocida", resolved: "Resuelta", ignored: "Ignorada",
+}
+
+export const CATEGORY_LABEL: Record<string, string> = {
+  panic: "Panic", infra: "Infraestructura", timeout: "Timeout", payment: "Pagos", database: "Base de datos",
+  server: "Error de servidor", validation: "Validación", auth: "Autenticación", not_found: "No encontrado",
+  client: "Cliente", threat: "Escaneo / bot", slow: "Lentitud", unknown: "Otro",
 }
 
 export const KIND_LABEL: Record<string, string> = {
@@ -42,6 +49,7 @@ export const PERIODS = [
   { key: "30d", label: "30 días", menu: "Últimos 30 días", long: "los últimos 30 días" },
 ] as const
 export type PeriodKey = (typeof PERIODS)[number]["key"]
+/** Texto largo del periodo en español (pásalo por t()). */
 export const periodLong = (k: PeriodKey) => PERIODS.find((p) => p.key === k)?.long ?? ""
 
 // Umbrales de los indicadores del resumen
@@ -50,6 +58,7 @@ export const LIMITS = { rate5: 0.01, p95Ms: 1000, apdex: 0.85 }
 /**
  * Título para mostrar: el del diagnóstico si lo hay; si no, el automático sin
  * el prefijo "MÉTODO /ruta → status · ", que ya se enseña aparte.
+ * Devuelve texto del servidor: pásalo por ts() para traducir los motivos automáticos.
  */
 export function displayTitle(i: { title: string; ai_title?: string | null; route?: string | null; method?: string | null }) {
   if (i.ai_title) return i.ai_title

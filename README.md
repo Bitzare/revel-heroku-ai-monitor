@@ -97,6 +97,8 @@ React con Vite, Tailwind y shadcn/ui, con la misma base que la intranet de Brisa
 | **En directo** | Errores, 4xx, eventos de plataforma y deploys según llegan, con filtro y pausa. |
 | **Fuentes y ajustes** | Estado de cada fuente, de la IA (cola, analizadas y fallidas) y de las alertas de n8n, más la configuración efectiva sin secretos y cómo conectar más fuentes. |
 
+La interfaz está en **español e inglés**: el selector ES/EN está al pie de la barra lateral y se recuerda (la primera vez se usa el idioma del navegador). También traduce los motivos y títulos automáticos que genera el monitor. Los diagnósticos de la IA se escriben en el idioma de `AI_LANGUAGE` (`es` por defecto, o `en`); los ya generados no cambian al cambiar el idioma de la interfaz. Los textos están en `web/src/lib/i18n-en.ts`, con el texto en español como clave.
+
 El periodo (15 min a 30 días) se elige arriba y se recuerda. Todo se actualiza en vivo por SSE. Tiene tema claro y oscuro y se adapta a móvil.
 
 Los colores de tráfico están validados para daltonismo en los dos temas, y cada serie lleva leyenda y tooltip. Los estados siempre van con icono y texto, nunca solo con color.

@@ -178,7 +178,7 @@ export interface PublicConfig {
   backendFound: boolean
   routes: number
   functions: number
-  ai: { enabled: boolean; url: string; model: string; numCtx: number; timeoutMs: number; analyzeMinSeverity: Severity; maxQueue: number }
+  ai: { enabled: boolean; url: string; model: string; language: "es" | "en"; numCtx: number; timeoutMs: number; analyzeMinSeverity: Severity; maxQueue: number }
   autofix: { mode: string; minConfidence: number; gofmt: boolean }
   alerts: { n8nConfigured: boolean; tokenConfigured: boolean; minSeverity: Severity }
   ingest: { tokenConfigured: boolean; herokuApiTokenConfigured: boolean }

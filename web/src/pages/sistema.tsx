@@ -8,8 +8,9 @@ import { ErrorNote, PageSkeleton } from "@/components/dashboard/indicators"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useApi } from "@/lib/api"
 import { dateTime, ms, number, relativeTime } from "@/lib/format"
+import { useI18n } from "@/lib/i18n"
 import { SEVERITY_LABEL, SOURCE_STATE_LABEL } from "@/lib/labels"
-import type { PublicConfig, SourceStatus } from "@/lib/types"
+import type { PublicConfig, Severity, SourceStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 function Status({ tone, children }: { tone: "good" | "warn" | "bad" | "muted"; children: ReactNode }) {
@@ -37,7 +38,6 @@ function KV({ rows }: { rows: [string, ReactNode][] }) {
   )
 }
 
-const yes = (b: boolean, on = "Configurado", off = "No configurado") => <span className={b ? "" : "text-muted-foreground"}>{b ? on : off}</span>
 const mono = (v: ReactNode) => <span className="font-mono text-[13px]">{v}</span>
 
 function Snippet({ children }: { children: string }) {
@@ -46,6 +46,7 @@ function Snippet({ children }: { children: string }) {
 
 export function SistemaPage() {
   const { health } = useApp()
+  const { t, ts, lang } = useI18n()
   const cfg = useApi<PublicConfig>("/api/config")
 
   if (cfg.error && !cfg.data) return <ErrorNote message={cfg.error} />
@@ -54,31 +55,34 @@ export function SistemaPage() {
   const ai = health.ai
   const n = health.notifier
   const origin = window.location.origin
+  const yes = (b: boolean, on = t("Configurado"), off = t("No configurado")) => <span className={b ? "" : "text-muted-foreground"}>{b ? on : off}</span>
+  const sev = (s: Severity) => t(SEVERITY_LABEL[s] ?? s)
+  const autofix = c.autofix.mode === "off" ? t("Desactivados") : c.autofix.mode === "branch" ? t("Diff y rama ai-fix/*") : t("Solo diff")
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Fuentes de logs">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label={t("Fuentes de logs")}>
         {health.sources.length ? health.sources.map((s) => (
           <Card key={s.name} className="gap-3">
             <CardHeader className="flex flex-row items-start justify-between gap-2">
               <div className="flex flex-col gap-1">
-                <CardTitle>{s.label}</CardTitle>
+                <CardTitle>{ts(s.label)}</CardTitle>
                 <CardDescription className="font-mono text-xs">{s.name}</CardDescription>
               </div>
-              <Status tone={srcTone(s)}>{SOURCE_STATE_LABEL[s.state] ?? s.state}</Status>
+              <Status tone={srcTone(s)}>{t(SOURCE_STATE_LABEL[s.state] ?? s.state)}</Status>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <KV rows={[
-                ["Líneas recibidas", number(s.lines)],
-                ["Última línea", s.lastLine ? relativeTime(s.lastLine) : "—"],
-                ["En este estado desde", dateTime(s.since)],
-                ["Reconexiones", number(s.reconnects)],
+                [t("Líneas recibidas"), number(s.lines)],
+                [t("Última línea"), s.lastLine ? relativeTime(s.lastLine) : "—"],
+                [t("En este estado desde"), dateTime(s.since)],
+                [t("Reconexiones"), number(s.reconnects)],
               ]} />
-              {s.error && <p className="rounded-md bg-bad-soft px-3 py-2 text-[13px] text-bad">{s.error}</p>}
+              {s.error && <p className="rounded-md bg-bad-soft px-3 py-2 text-[13px] text-bad">{ts(s.error)}</p>}
             </CardContent>
           </Card>
         )) : (
-          <Card><CardHeader><CardTitle>Sin fuentes activas</CardTitle><CardDescription>Configura LOG_SOURCES o envía logs por /api/ingest.</CardDescription></CardHeader></Card>
+          <Card><CardHeader><CardTitle>{t("Sin fuentes activas")}</CardTitle><CardDescription>{t("Configura LOG_SOURCES o envía logs por /api/ingest.")}</CardDescription></CardHeader></Card>
         )}
       </section>
 
@@ -86,43 +90,47 @@ export function SistemaPage() {
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-2">
             <div className="flex flex-col gap-1">
-              <CardTitle>Diagnóstico con IA</CardTitle>
-              <CardDescription>Ollama en local; ningún log ni código sale de esta máquina.</CardDescription>
+              <CardTitle>{t("Diagnóstico con IA")}</CardTitle>
+              <CardDescription>{t("Ollama en local; ningún log ni código sale de esta máquina.")}</CardDescription>
             </div>
             <Status tone={!ai.enabled ? "muted" : ai.ok ? "good" : ai.ok === false ? "bad" : "warn"}>
-              {!ai.enabled ? "Desactivado" : ai.ok ? "Disponible" : ai.ok === false ? "No responde" : "Comprobando"}
+              {!ai.enabled ? t("Desactivado") : ai.ok ? t("Disponible") : ai.ok === false ? t("No responde") : t("Comprobando")}
             </Status>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <KV rows={[
-              ["Modelo", mono(c.ai.model)],
-              ["Servidor", mono(c.ai.url)],
-              ["Contexto", `${number(c.ai.numCtx)} tokens`],
-              ["Timeout por llamada", ms(c.ai.timeoutMs)],
-              ["Análisis automático desde", SEVERITY_LABEL[c.ai.analyzeMinSeverity] ?? c.ai.analyzeMinSeverity],
-              ["Cola", `${number(ai.queue.queued)} en espera${ai.queue.running ? `, #${ai.queue.running} en curso` : ""} (máximo ${number(c.ai.maxQueue)})`],
-              ["Analizadas / fallidas", `${number(ai.queue.processed)} / ${number(ai.queue.failed)} desde ${dateTime(health.startedAt)}`],
-              ["Parches", `${c.autofix.mode === "off" ? "Desactivados" : c.autofix.mode === "branch" ? "Diff y rama ai-fix/*" : "Solo diff"} · confianza mínima ${Math.round(c.autofix.minConfidence * 100)} % · gofmt ${c.autofix.gofmt ? "disponible" : "no encontrado"}`],
+              [t("Modelo"), mono(c.ai.model)],
+              [t("Servidor"), mono(c.ai.url)],
+              [t("Contexto"), t("{n} tokens", { n: number(c.ai.numCtx) })],
+              [t("Timeout por llamada"), ms(c.ai.timeoutMs)],
+              [t("Idioma de los diagnósticos"), c.ai.language === "en" ? "English" : "Español"],
+              [t("Análisis automático desde"), sev(c.ai.analyzeMinSeverity)],
+              [t("Cola"), t("{q} en espera{running} (máximo {max})", { q: number(ai.queue.queued), running: ai.queue.running ? t(", #{id} en curso", { id: ai.queue.running }) : "", max: number(c.ai.maxQueue) })],
+              [t("Analizadas / fallidas"), t("{a} / {b} desde {since}", { a: number(ai.queue.processed), b: number(ai.queue.failed), since: dateTime(health.startedAt) })],
+              [t("Parches"), t("{mode} · confianza mínima {c} % · gofmt {g}", { mode: autofix, c: Math.round(c.autofix.minConfidence * 100), g: c.autofix.gofmt ? t("disponible") : t("no encontrado") })],
             ]} />
-            {ai.error && <p className="rounded-md bg-bad-soft px-3 py-2 text-[13px] text-bad">{ai.error}</p>}
+            {ai.error && <p className="rounded-md bg-bad-soft px-3 py-2 text-[13px] text-bad">{ts(ai.error)}</p>}
+            {c.ai.language !== lang && (
+              <p className="text-[13px] text-muted-foreground">{t("Los diagnósticos se generan en el idioma de AI_LANGUAGE (.env); los ya generados no cambian al cambiar el idioma de la interfaz.")}</p>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-2">
             <div className="flex flex-col gap-1">
-              <CardTitle>Alertas a Slack por n8n</CardTitle>
-              <CardDescription>Workflow n8n/monitor-to-slack.json en la VM revel-test-db.</CardDescription>
+              <CardTitle>{t("Alertas a Slack por n8n")}</CardTitle>
+              <CardDescription>{t("Workflow n8n/monitor-to-slack.json en la VM revel-test-db.")}</CardDescription>
             </div>
-            <Status tone={!n.enabled ? "muted" : n.lastError ? "bad" : "good"}>{!n.enabled ? "Sin configurar" : n.lastError ? "Último envío fallido" : "Activas"}</Status>
+            <Status tone={!n.enabled ? "muted" : n.lastError ? "bad" : "good"}>{!n.enabled ? t("Sin configurar") : n.lastError ? t("Último envío fallido") : t("Activas")}</Status>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <KV rows={[
               ["Webhook", yes(c.alerts.n8nConfigured)],
-              ["Token compartido", yes(c.alerts.tokenConfigured)],
-              ["Avisa desde", SEVERITY_LABEL[n.minSeverity] ?? n.minSeverity],
-              ["Enviadas / fallidas", `${number(n.sent)} / ${number(n.failed)}`],
-              ["Cuándo avisa", "Crítica, regresión o pico al momento; el resto al terminar el diagnóstico. Máximo una vez cada 30 min por incidencia."],
+              [t("Token compartido"), yes(c.alerts.tokenConfigured)],
+              [t("Avisa desde"), sev(n.minSeverity)],
+              [t("Enviadas / fallidas"), `${number(n.sent)} / ${number(n.failed)}`],
+              [t("Cuándo avisa"), t("Crítica, regresión o pico al momento; el resto al terminar el diagnóstico. Máximo una vez cada 30 min por incidencia.")],
             ]} />
             {n.lastError && <p className="rounded-md bg-bad-soft px-3 py-2 text-[13px] text-bad">{n.lastError}</p>}
           </CardContent>
@@ -130,35 +138,37 @@ export function SistemaPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Backend y procesado</CardTitle>
-            <CardDescription>Código que se usa para resolver rutas y dar contexto al diagnóstico.</CardDescription>
+            <CardTitle>{t("Backend y procesado")}</CardTitle>
+            <CardDescription>{t("Código que se usa para resolver rutas y dar contexto al diagnóstico.")}</CardDescription>
           </CardHeader>
           <CardContent>
             <KV rows={[
-              ["Ruta del backend", mono(c.backendPath)],
-              ["Estado", c.backendFound ? `${number(c.routes)} rutas y ${number(c.functions)} funciones Go indexadas` : <span className="text-bad">No encontrado: revisa BACKEND_PATH</span>],
-              ["Líneas procesadas", `${number(health.pipeline.lines)} (${number(health.pipeline.dupes)} duplicadas descartadas)`],
-              ["Peticiones / ocurrencias", `${number(health.pipeline.requests)} / ${number(health.pipeline.incidents)}`],
-              ["Base de datos", mono(c.dbFile)],
-              ["Retención", `${c.thresholds.retentionDays} días`],
+              [t("Ruta del backend"), mono(c.backendPath)],
+              [t("Estado"), c.backendFound
+                ? t("{r} rutas y {f} funciones Go indexadas", { r: number(c.routes), f: number(c.functions) })
+                : <span className="text-bad">{t("No encontrado: revisa BACKEND_PATH")}</span>],
+              [t("Líneas procesadas"), t("{n} ({d} duplicadas descartadas)", { n: number(health.pipeline.lines), d: number(health.pipeline.dupes) })],
+              [t("Peticiones / ocurrencias"), `${number(health.pipeline.requests)} / ${number(health.pipeline.incidents)}`],
+              [t("Base de datos"), mono(c.dbFile)],
+              [t("Retención"), t("{n} días", { n: c.thresholds.retentionDays })],
             ]} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Umbrales e ingesta</CardTitle>
-            <CardDescription>Se cambian en el fichero .env (ver .env.example).</CardDescription>
+            <CardTitle>{t("Umbrales e ingesta")}</CardTitle>
+            <CardDescription>{t("Se cambian en el fichero .env (ver .env.example).")}</CardDescription>
           </CardHeader>
           <CardContent>
             <KV rows={[
-              ["Petición lenta", `más de ${ms(c.thresholds.slowRequestMs)}`],
+              [t("Petición lenta"), t("más de {v}", { v: ms(c.thresholds.slowRequestMs) })],
               ["Apdex T", ms(c.thresholds.apdexTargetMs)],
-              ["Ventana de correlación", ms(c.thresholds.correlationWindowMs)],
-              ["Fuentes configuradas", mono(c.sources.join(", "))],
-              ["Token de la API de Heroku", yes(c.ingest.herokuApiTokenConfigured)],
-              ["Token de ingesta", yes(c.ingest.tokenConfigured, "Configurado", "Sin token: solo se acepta ingesta desde esta máquina")],
-              ["Escucha en", mono(`${c.host}:${c.port}`)],
+              [t("Ventana de correlación"), ms(c.thresholds.correlationWindowMs)],
+              [t("Fuentes configuradas"), mono(c.sources.join(", "))],
+              [t("Token de la API de Heroku"), yes(c.ingest.herokuApiTokenConfigured)],
+              [t("Token de ingesta"), yes(c.ingest.tokenConfigured, t("Configurado"), t("Sin token: solo se acepta ingesta desde esta máquina"))],
+              [t("Escucha en"), mono(`${c.host}:${c.port}`)],
             ]} />
           </CardContent>
         </Card>
@@ -166,23 +176,23 @@ export function SistemaPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Conectar fuentes de logs</CardTitle>
-          <CardDescription>Se pueden usar varias a la vez: las líneas repetidas se descartan.</CardDescription>
+          <CardTitle>{t("Conectar fuentes de logs")}</CardTitle>
+          <CardDescription>{t("Se pueden usar varias a la vez: las líneas repetidas se descartan.")}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 lg:grid-cols-3">
           <div className="flex flex-col gap-2">
-            <h4 className="text-sm font-semibold">API de Heroku (recomendada)</h4>
-            <p className="text-[13.5px] text-muted-foreground">Streaming con reconexión, sin depender de la CLI. Token de solo lectura en .env.</p>
+            <h4 className="text-sm font-semibold">{t("API de Heroku (recomendada)")}</h4>
+            <p className="text-[13.5px] text-muted-foreground">{t("Streaming con reconexión, sin depender de la CLI. Token de solo lectura en .env.")}</p>
             <Snippet>{`heroku authorizations:create \\\n  -d "revel-guardia" --scope read\n\nHEROKU_API_TOKEN=...\nLOG_SOURCES=heroku-api`}</Snippet>
           </div>
           <div className="flex flex-col gap-2">
             <h4 className="text-sm font-semibold">n8n</h4>
-            <p className="text-[13.5px] text-muted-foreground">Workflow n8n/heroku-logs-to-monitor.json: cada minuto lee los logs y los envía aquí.</p>
+            <p className="text-[13.5px] text-muted-foreground">{t("Workflow n8n/heroku-logs-to-monitor.json: cada minuto lee los logs y los envía aquí.")}</p>
             <Snippet>{`POST ${origin}/api/ingest/n8n\nX-Monitor-Token: <INGEST_TOKEN>\n\n{"lines": ["..."]}`}</Snippet>
           </div>
           <div className="flex flex-col gap-2">
-            <h4 className="text-sm font-semibold">Drain de Logplex</h4>
-            <p className="text-[13.5px] text-muted-foreground">Necesita una URL pública (por ejemplo, un túnel) y el token de ingesta.</p>
+            <h4 className="text-sm font-semibold">{t("Drain de Logplex")}</h4>
+            <p className="text-[13.5px] text-muted-foreground">{t("Necesita una URL pública (por ejemplo, un túnel) y el token de ingesta.")}</p>
             <Snippet>{`heroku drains:add \\\n  "https://TU-TUNEL/api/ingest?token=<INGEST_TOKEN>" \\\n  -a ${c.app}`}</Snippet>
           </div>
         </CardContent>

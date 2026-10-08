@@ -65,6 +65,8 @@ function load(overrides = {}) {
         // Motor de IA (Ollama)
         ollamaUrl: str('OLLAMA_URL', 'http://127.0.0.1:11434').replace(/\/+$/, ''),
         model: str('OLLAMA_MODEL', 'qwen3.5:9b'),
+        // Idioma de los diagnósticos: es | en
+        aiLanguage: /^en/i.test(str('AI_LANGUAGE', 'es')) ? 'en' : 'es',
         numCtx: num('OLLAMA_NUM_CTX', 16384),
         aiTimeoutMs: num('OLLAMA_TIMEOUT_MS', 180000),
         aiEnabled: bool('AI_ENABLED', true),

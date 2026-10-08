@@ -169,3 +169,14 @@ test('parseJsonLoose tolera texto alrededor del JSON', () => {
     assert.deepEqual(parseJsonLoose('bla {"a":1} bla'), { a: 1 });
     assert.equal(parseJsonLoose('nada'), null);
 });
+
+test('AI_LANGUAGE cambia el idioma pedido al modelo', async () => {
+    const { systemPrompt } = require('../src/ai/analyzer');
+    assert.match(systemPrompt('en'), /inglés \(English\)/);
+    assert.match(systemPrompt('es'), /SIEMPRE en español/);
+    const { store, pipeline, analyzer, client } = setup(() => GOOD, { aiLanguage: 'en' });
+    ingest(pipeline, federatedLines);
+    const [issue] = store.listIssues({ state: 'all' });
+    await analyzer._analyze(issue.id);
+    assert.match(client.calls[0].messages[0].content, /English/);
+});

@@ -14,7 +14,7 @@ const PATCH_SCHEMA = {
     type: 'object',
     properties: {
         replacement: { type: 'string', description: 'La función Go completa corregida, desde "func" hasta la llave final' },
-        explanation: { type: 'string', description: 'Qué cambia y por qué, en español, 1-3 frases' },
+        explanation: { type: 'string', description: 'Qué cambia y por qué, 1-3 frases' },
     },
     required: ['replacement', 'explanation'],
 };
@@ -53,6 +53,7 @@ class AutoFix {
             `Fichero: ${fn.file}`,
             '```go', original, '```',
             'Devuelve la función completa corregida en "replacement" (sin markdown).',
+            `Escribe "explanation" en ${this.cfg.aiLanguage === 'en' ? 'inglés (English)' : 'español'}.`,
         ].join('\n');
         const { data } = await this.client.chatJson([{ role: 'user', content: prompt }], PATCH_SCHEMA, { retries: 1, temperature: 0 });
         const replacement = String(data.replacement || '').replace(/^```(?:go)?\n?|```\s*$/g, '').trim();
