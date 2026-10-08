@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Revel Guardia</title>
+    <meta name="description" content="Monitor de producción del backend de Revel: incidencias agrupadas, diagnóstico con IA local y pulso de peticiones en vivo.">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+    <script>
+        try { const t = localStorage.getItem('aimon-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+    </script>
+</head>
+<body>
+    <a class="skip" href="#main">Saltar al contenido</a>
+    <header class="top">
+        <div class="brand">
+            <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M2 17h7l3-8 4 15 4-11 2 4h8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div>
+                <div class="brand-name">Revel Guardia</div>
+                <div class="brand-sub" id="appName">backend en Heroku</div>
+            </div>
+        </div>
+        <div class="verdict" id="verdict" role="status" aria-live="polite">
+            <span class="verdict-dot"></span><span class="verdict-text">Conectando…</span>
+        </div>
+        <nav class="tabs" aria-label="Secciones">
+            <a href="#/issues" data-tab="issues">Incidencias</a>
+            <a href="#/live" data-tab="live">En directo</a>
+            <a href="#/sources" data-tab="sources">Fuentes</a>
+        </nav>
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Cambiar tema">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor"/></svg>
+        </button>
+    </header>
+
+    <section class="pulse" aria-label="Pulso de peticiones">
+        <div class="pulse-head">
+            <div class="pulse-legend">
+                <span><i class="lg lg-ok"></i>Respuestas correctas, la altura es la latencia</span>
+                <span><i class="lg lg-4"></i>4xx</span>
+                <span><i class="lg lg-5"></i>5xx y errores de Heroku</span>
+                <span><i class="lg lg-rel"></i>Deploy</span>
+            </div>
+            <div class="seg" role="group" aria-label="Ventana del pulso">
+                <button type="button" data-pw="5">5 min</button>
+                <button type="button" data-pw="15" aria-pressed="true">15 min</button>
+                <button type="button" data-pw="60">1 h</button>
+            </div>
+        </div>
+        <div class="pulse-wrap">
+            <canvas id="pulse" height="150"></canvas>
+            <div class="pulse-tip" id="pulseTip" hidden></div>
+            <div class="pulse-empty" id="pulseEmpty" hidden>Aún no ha llegado ninguna petición. En cuanto entren logs de Heroku verás aquí cada respuesta.</div>
+        </div>
+        <dl class="vitals" id="vitals"></dl>
+    </section>
+
+    <main id="main">
+        <section class="view" id="view-issues">
+            <div class="board">
+                <div class="list-col">
+                    <div class="toolbar">
+                        <div class="seg" role="group" aria-label="Estado">
+                            <button type="button" data-state="active" aria-pressed="true">Activas</button>
+                            <button type="button" data-state="resolved">Resueltas</button>
+                            <button type="button" data-state="ignored">Ignoradas</button>
+                            <button type="button" data-state="all">Todas</button>
+                        </div>
+                        <label class="sr" for="range">Periodo</label>
+                        <select id="range">
+                            <option value="1h">Última hora</option>
+                            <option value="6h">6 horas</option>
+                            <option value="24h" selected>24 horas</option>
+                            <option value="7d">7 días</option>
+                            <option value="all">Todo</option>
+                        </select>
+                    </div>
+                    <div class="toolbar">
+                        <label class="search">
+                            <span class="sr">Buscar</span>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 20-4.5-4.5M10.5 17a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            <input id="q" type="search" placeholder="Ruta, función o error" autocomplete="off">
+                        </label>
+                        <label class="check"><input type="checkbox" id="noise"> Mostrar ruido</label>
+                    </div>
+                    <div class="cats" id="cats" role="group" aria-label="Categorías"></div>
+                    <ol class="issues" id="issues" aria-label="Incidencias"></ol>
+                </div>
+                <article class="detail" id="detail" aria-live="polite"></article>
+            </div>
+        </section>
+
+        <section class="view" id="view-live" hidden>
+            <div class="live-bar">
+                <label class="search">
+                    <span class="sr">Filtrar</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 20-4.5-4.5M10.5 17a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    <input id="liveFilter" type="search" placeholder="Filtrar líneas" autocomplete="off">
+                </label>
+                <button type="button" class="btn" id="livePause" aria-pressed="false">Pausar</button>
+            </div>
+            <p class="hint">Solo se muestran errores, peticiones fallidas, eventos de plataforma y deploys. Las peticiones correctas van al pulso.</p>
+            <ol class="tail" id="tail"></ol>
+        </section>
+
+        <section class="view" id="view-sources" hidden>
+            <div id="sources"></div>
+        </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <script src="/app.js"></script>
+</body>
+</html>

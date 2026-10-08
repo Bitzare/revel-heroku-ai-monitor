@@ -1,0 +1,82 @@
+{
+  "name": "Revel Guardia - Logs de Heroku -> monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 1 }] }
+      },
+      "id": "guardia-cron",
+      "name": "Cada minuto",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.heroku.com/apps/revel/log-sessions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Accept", "value": "application/vnd.heroku+json; version=3" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"lines\": 1500 }",
+        "options": {}
+      },
+      "id": "guardia-session",
+      "name": "Crear log-session (Heroku)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 300],
+      "notes": "Usa la misma credencial Header Auth de Heroku (scope read) que el workflow de pagos."
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.logplex_url }}",
+        "options": { "response": { "response": { "responseFormat": "text", "outputPropertyName": "data" } } }
+      },
+      "id": "guardia-download",
+      "name": "Descargar logs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ventana fija [floor(now,1min)-1min, floor(now,1min)): cada línea cae en una sola\n// ejecución sin depender de $getWorkflowStaticData (que en esta n8n no persiste).\n// El monitor además deduplica por contenido, así que un solapamiento no duplica nada.\nconst now = Date.now();\nconst end = Math.floor(now / 60000) * 60000;\nconst start = end - 60000;\nconst raw = String($input.first().json.data || '');\nconst iso = /^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2}))/;\nconst lines = raw.split('\\n').filter((l) => {\n  const m = l.match(iso);\n  if (!m) return false;\n  const t = Date.parse(m[1]);\n  return t >= start && t < end;\n});\nif (!lines.length) return [];\nreturn [{ json: { lines } }];"
+      },
+      "id": "guardia-window",
+      "name": "Filtrar ventana del último minuto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.REVEL_GUARDIA_URL }}/api/ingest/n8n",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "X-Monitor-Token", "value": "={{ $env.REVEL_GUARDIA_TOKEN }}" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lines: $json.lines }) }}",
+        "options": { "timeout": 20000 }
+      },
+      "id": "guardia-post",
+      "name": "Enviar al monitor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 300],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Cada minuto": { "main": [[{ "node": "Crear log-session (Heroku)", "type": "main", "index": 0 }]] },
+    "Crear log-session (Heroku)": { "main": [[{ "node": "Descargar logs", "type": "main", "index": 0 }]] },
+    "Descargar logs": { "main": [[{ "node": "Filtrar ventana del último minuto", "type": "main", "index": 0 }]] },
+    "Filtrar ventana del último minuto": { "main": [[{ "node": "Enviar al monitor", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

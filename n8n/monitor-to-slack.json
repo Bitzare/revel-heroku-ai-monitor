@@ -1,0 +1,77 @@
+{
+  "name": "Revel Guardia - Alertas (monitor -> Slack)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "revel-guardia",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "guardia-webhook",
+      "name": "Webhook del monitor",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "revel-guardia"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Comprueba el token compartido (X-Monitor-Token = $env.REVEL_GUARDIA_TOKEN) y\n// prepara la lista de user_ids para enriquecer con la tabla Users, igual que\n// el workflow de alertas de pagos.\nconst item = $input.first().json;\nconst expected = $env.REVEL_GUARDIA_TOKEN || '';\nconst given = (item.headers && (item.headers['x-monitor-token'] || item.headers['X-Monitor-Token'])) || '';\nif (expected && given !== expected) {\n  return [];\n}\nconst body = item.body || item;\nconst userIds = (body.userIds || []).map((x) => String(x)).filter((x) => /^\\d+$/.test(x)).slice(0, 20);\nreturn [{ json: { ...body, userIds } }];"
+      },
+      "id": "guardia-validate",
+      "name": "Validar token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, name, surname, email FROM Users WHERE id IN ({{ $json.userIds.length > 0 ? $json.userIds.join(',') : '0' }})",
+        "options": {}
+      },
+      "id": "guardia-users",
+      "name": "Buscar usuarios afectados",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [480, 300],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "notes": "Asigna aquí la misma credencial MySQL que usa el workflow de pagos (idealmente n8n_alerts_ro cuando tenga permisos)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma el mensaje de Slack con el diagnóstico de la IA y los usuarios afectados.\nconst alert = $('Validar token').first().json;\nconst users = $input.all().map((i) => i.json).filter((u) => u && u.id !== undefined);\nconst i = alert.issue || {};\nconst d = alert.diagnosis;\nconst icon = { critical: ':red_circle:', high: ':large_orange_circle:', medium: ':large_yellow_circle:' }[i.severity] || ':white_circle:';\nconst why = { new: 'Nueva', regression: 'Regresión', spike: 'Pico', diagnosed: 'Diagnosticada' }[alert.reason] || 'Alerta';\nconst lines = [];\nlines.push(`${icon} *${why}: ${i.title}*`);\nif (i.route) lines.push(`\\`${i.route}\\` → ${i.status || ''}`);\nlines.push(`${i.count} ocurrencia(s), última ${i.lastSeen}${i.afterRelease ? ` · tras ${i.afterRelease}` : ''}${i.regression ? ' · estaba resuelta' : ''}`);\nif (d) {\n  lines.push(`\\n*Qué pasa:* ${d.summary}`);\n  lines.push(`*Causa:* ${d.rootCause}`);\n  lines.push(`*Arreglo:* ${d.fix}`);\n  if (d.location && d.location.file) lines.push(`*Dónde:* \\`${d.location.file}${d.location.line ? ':' + d.location.line : ''}\\``);\n  lines.push(`_Confianza ${Math.round((d.confidence || 0) * 100)} %_`);\n}\nif (users.length) {\n  lines.push('\\n*Usuarios afectados:*');\n  for (const u of users.slice(0, 10)) lines.push(`• user_id=${u.id} - ${u.name || ''} ${u.surname || ''} <${u.email || ''}>`);\n} else if ((alert.userIds || []).length) {\n  lines.push(`\\nuser_ids: ${alert.userIds.join(', ')}`);\n}\nif (i.url) lines.push(`\\n<${i.url}|Abrir en Revel Guardia>`);\nreturn [{ json: { text: lines.join('\\n') } }];"
+      },
+      "id": "guardia-message",
+      "name": "Componer mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL_GUARDIA || $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.text }) }}",
+        "options": {}
+      },
+      "id": "guardia-slack",
+      "name": "Avisar a Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 300]
+    }
+  ],
+  "connections": {
+    "Webhook del monitor": { "main": [[{ "node": "Validar token", "type": "main", "index": 0 }]] },
+    "Validar token": { "main": [[{ "node": "Buscar usuarios afectados", "type": "main", "index": 0 }]] },
+    "Buscar usuarios afectados": { "main": [[{ "node": "Componer mensaje", "type": "main", "index": 0 }]] },
+    "Componer mensaje": { "main": [[{ "node": "Avisar a Slack", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

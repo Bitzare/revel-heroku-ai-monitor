@@ -1,0 +1,27 @@
+2026-10-08T10:00:00.100000+00:00 app[api]: Release v812 created by user dev@example.com
+2026-10-08T10:00:01.000000+00:00 app[web.1]: [cors] 2026/10/08 10:00:01 Handler: Actual request
+2026-10-08T10:00:01.050000+00:00 app[web.1]: [EndPoint] 2026/10/08 10:00:01 [32m GET [0m https://api.revel.cool/rv1/profile? [32m (200) [0m
+2026-10-08T10:00:01.050300+00:00 heroku[router]: at=info method=GET path="/rv1/profile" host=api.revel.cool request_id=11111111-1111-1111-1111-111111111111 fwd="1.2.3.4" dyno=web.1 connect=0ms service=48ms status=200 bytes=2571 protocol=http1.1
+2026-10-08T10:00:02.000000+00:00 app[web.1]: 2026/10/08 10:00:02 not authorized: /handlers/sessions/tokens.go:106 -> no token available
+2026-10-08T10:00:02.000100+00:00 app[web.1]: 2026/10/08 10:00:02 [GetClubPaymentTypes] Failed to validate session: not authorized: /handlers/sessions/tokens.go:106 -> no token available
+2026-10-08T10:00:02.000300+00:00 app[web.1]: [EndPoint] 2026/10/08 10:00:02 [32m GET [0m https://api.revel.cool/admin/v1/clubs/9/club-payment-types? [31m (401) [0m
+2026-10-08T10:00:02.000500+00:00 heroku[router]: at=info method=GET path="/admin/v1/clubs/9/club-payment-types" host=api.revel.cool request_id=22222222-2222-2222-2222-222222222222 fwd="1.2.3.4" dyno=web.1 connect=0ms service=12ms status=401 bytes=0 protocol=http1.1
+2026-10-08T10:00:03.000000+00:00 app[web.1]: 2026/10/08 10:00:03 [PostCoinPackIntent] Failed to create payment intent user_id=4242: resource_missing: No such PaymentMethod: 'pm_1Abc'
+2026-10-08T10:00:03.000300+00:00 app[web.1]: [EndPoint] 2026/10/08 10:00:03 [34m POST [0m https://api.revel.cool/rv1/payments/coin_packs/intent [31m (500) [0m
+2026-10-08T10:00:03.000500+00:00 heroku[router]: at=info method=POST path="/rv1/payments/coin_packs/intent" host=api.revel.cool request_id=33333333-3333-3333-3333-333333333333 fwd="1.2.3.4" dyno=web.1 connect=0ms service=420ms status=500 bytes=0 protocol=http1.1
+2026-10-08T10:00:03.000500+00:00 heroku[router]: at=info method=POST path="/rv1/payments/coin_packs/intent" host=api.revel.cool request_id=33333333-3333-3333-3333-333333333333 fwd="1.2.3.4" dyno=web.1 connect=0ms service=420ms status=500 bytes=0 protocol=http1.1
+2026-10-08T10:00:04.000000+00:00 app[web.2]: 2026/10/08 10:00:04 http: panic serving 10.1.2.3:51234: runtime error: invalid memory address or nil pointer dereference
+2026-10-08T10:00:04.000100+00:00 app[web.2]: goroutine 4242 [running]:
+2026-10-08T10:00:04.000200+00:00 app[web.2]: net/http.(*conn).serve.func1()
+2026-10-08T10:00:04.000300+00:00 app[web.2]: 	/usr/local/go/src/net/http/server.go:1898 +0xbe
+2026-10-08T10:00:04.000400+00:00 app[web.2]: 	/app/handlers/sessions/tokens.go:9 +0x1d
+2026-10-08T10:00:05.000000+00:00 heroku[router]: at=error code=H12 desc="Request timeout" method=GET path="/rv1/clubs/bookings" host=api.revel.cool request_id=44444444-4444-4444-4444-444444444444 fwd="1.2.3.4" dyno=web.1 connect=0ms service=30000ms status=503 bytes=0 protocol=http1.1
+2026-10-08T10:00:06.000000+00:00 heroku[web.1]: Error R14 (Memory quota exceeded)
+2026-10-08T10:00:07.000000+00:00 app[web.1]: 2026/10/08 10:00:07 Error fetching pending news from Redis: internal: /services/cache/redis.go:30 -> redis auth error: dial tcp 63.34.222.204:27410: i/o timeout
+2026-10-08T10:00:08.000000+00:00 heroku[router]: at=info method=GET path="/.env" host=api.revel.cool request_id=55555555-5555-5555-5555-555555555555 fwd="9.9.9.9" dyno=web.1 connect=0ms service=1ms status=404 bytes=0 protocol=http1.1
+2026-10-08T10:00:08.100000+00:00 heroku[router]: at=info method=GET path="/wp-admin/setup-config.php" host=api.revel.cool request_id=66666666-6666-6666-6666-666666666666 fwd="9.9.9.9" dyno=web.1 connect=0ms service=1ms status=404 bytes=0 protocol=http1.1
+2026-10-08T10:00:09.000000+00:00 heroku[router]: at=info method=GET path="/rv1/this-route-does-not-exist" host=api.revel.cool request_id=77777777-7777-7777-7777-777777777777 fwd="1.2.3.4" dyno=web.1 connect=0ms service=1ms status=404 bytes=0 protocol=http1.1
+2026-10-08T10:00:10.000000+00:00 app[web.1]: 2026/10/08 10:00:10 [PostCoinPackIntent] Failed to buy pack: insufficient coins user_id=1
+2026-10-08T10:00:10.000300+00:00 app[web.1]: [EndPoint] 2026/10/08 10:00:10 [34m POST [0m https://api.revel.cool/rv1/payments/coin_packs/intent [31m (400) [0m
+2026-10-08T10:00:11.000000+00:00 app[web.1]: 2026/10/08 10:00:11 <nil>
+2026-10-08T10:00:12.000000+00:00 heroku[web.1]: State changed from up to crashed
