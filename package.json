@@ -1,17 +1,19 @@
 {
-  "name": "heroku-ai-monitor",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "name": "revel-heroku-ai-monitor",
+  "version": "5.0.0",
+  "description": "Revel Guardia: monitor de producción del backend de Revel con clasificación determinista, diagnóstico con IA local (Ollama) y dashboard en tiempo real",
+  "main": "src/index.js",
   "type": "commonjs",
-  "dependencies": {
-    "socket.io": "^4.8.3",
-    "sqlite3": "^6.0.1"
-  }
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "replay": "node src/index.js --replay",
+    "test": "node --test test/*.test.js",
+    "add-error-logs": "node tools/add-error-logs.js"
+  },
+  "keywords": ["heroku", "monitoring", "ollama", "sre", "logs"],
+  "license": "ISC",
+  "private": true
 }

@@ -1,6 +1,12 @@
+node_modules/
+.env
+data/
+*.db
+*.db-shm
+*.db-wal
 ngrok.yml
+# ficheros del monitor anterior
 revel_ai_errors.log
 revel_ai_baseline.json
 revel_ai_checklist.json
-node_modules/
-.env
+ops_center.db
