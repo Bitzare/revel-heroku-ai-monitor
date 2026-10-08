@@ -86,7 +86,7 @@ export function ResumenPage() {
     {
       id: "endpoint", header: "Endpoint", accessorFn: (r) => r.route,
       cell: ({ row }) => (
-        <span className="flex min-w-0 items-center gap-2"><MethodBadge method={row.original.method} /><span className="truncate font-mono text-[12.5px]">{row.original.route}</span></span>
+        <span className="flex min-w-0 items-center gap-2" title={row.original.route}><MethodBadge method={row.original.method} /><span className="block max-w-[11rem] truncate font-mono text-[12.5px] 2xl:max-w-[16rem]">{row.original.route}</span></span>
       ),
     },
     { accessorKey: "err5", header: "5xx", meta: { numeric: true }, cell: ({ getValue }) => <span className={cn(getValue<number>() > 0 && "font-semibold text-bad")}>{number(getValue<number>())}</span> },

@@ -14,7 +14,7 @@ const PATCH_SCHEMA = {
     type: 'object',
     properties: {
         replacement: { type: 'string', description: 'La función Go completa corregida, desde "func" hasta la llave final' },
-        explanation: { type: 'string', description: 'Qué cambia y por qué, 1-3 frases' },
+        explanation: { type: 'string', description: 'Qué cambia y por qué, 1-3 frases en texto plano, sin código ni markdown' },
     },
     required: ['replacement', 'explanation'],
 };
@@ -71,8 +71,9 @@ class AutoFix {
         const diff = unifiedDiff(fn.file, current, updated);
         let branch = null;
         if (this.cfg.autofixMode === 'branch') branch = this._createBranch(issue, fn, original, replacement, analysis);
-        const note = added.length ? `\n# Imports añadidos: ${added.join(', ')}` : '';
-        return { diff: `# ${data.explanation}${note}\n${diff}`, branch };
+        // Las notas van todas con "# " delante: así "Copiar diff" las quita y el diff sigue aplicando.
+        const notes = [...explanationLines(data.explanation), ...(added.length ? [`Imports añadidos: ${added.join(', ')}`] : [])];
+        return { diff: `${notes.map((l) => `# ${l}`).join('\n')}\n${diff}`, branch };
     }
 
     _checkSyntax(src) {
@@ -111,6 +112,18 @@ class AutoFix {
             return branch;
         } finally { fs.rmSync(dir, { recursive: true, force: true }); }
     }
+}
+
+/** Explicación del modelo en líneas de texto plano: sin bloques de código y con un tope razonable. */
+function explanationLines(text) {
+    const plain = String(text || '').replace(/```[\s\S]*?(```|$)/g, ' ').replace(/[ \t]+/g, ' ');
+    const lines = plain.split(/\r?\n/)
+        .map((l) => l.trim().replace(/\*\*(.+?)\*\*/g, '$1').replace(/^[*-]\s+/, '• '))
+        .filter(Boolean);
+    const out = [];
+    let len = 0;
+    for (const l of lines) { if (len + l.length > 700) break; out.push(l); len += l.length; }
+    return out.length ? out : ['Parche propuesto por el modelo.'];
 }
 
 // Paquetes de la stdlib que el modelo suele usar en los parches sin importarlos.
@@ -187,4 +200,4 @@ function unifiedDiff(file, a, b, context = 3) {
     return out;
 }
 
-module.exports = { AutoFix, unifiedDiff, findGofmt, addMissingImports };
+module.exports = { AutoFix, unifiedDiff, findGofmt, addMissingImports, explanationLines };

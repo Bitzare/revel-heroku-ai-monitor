@@ -180,3 +180,15 @@ test('AI_LANGUAGE cambia el idioma pedido al modelo', async () => {
     await analyzer._analyze(issue.id);
     assert.match(client.calls[0].messages[0].content, /English/);
 });
+
+test('explicaciones de varias líneas no rompen el diff', () => {
+    const { explanationLines } = require('../src/ai/autofix');
+    const lines = explanationLines('Cambia el manejo de error.\n1. Paso uno\nAntes:\n```go\nfunc x() {}\n```\nFin.');
+    assert.deepEqual(lines, ['Cambia el manejo de error.', '1. Paso uno', 'Antes:', 'Fin.']);
+    assert.ok(lines.every((l) => !l.includes('func x')));
+});
+
+test('las notas del parche quedan en texto plano', () => {
+    const { explanationLines } = require('../src/ai/autofix');
+    assert.deepEqual(explanationLines('1. **Inspección**: algo\n* viñeta'), ['1. Inspección: algo', '• viñeta']);
+});
