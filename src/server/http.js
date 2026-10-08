@@ -8,8 +8,9 @@ const crypto = require('crypto');
 const { parseLogplexFrames } = require('../pipeline/parse');
 const { sevRank, SEVERITIES } = require('../config');
 const { CATEGORY_LABELS } = require('../pipeline/classify');
+const { mergeHist, percentile } = require('../store/db');
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.woff2': 'font/woff2' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.woff2': 'font/woff2', '.woff': 'font/woff', '.json': 'application/json', '.map': 'application/json' };
 const RANGES = { '15m': 15, '1h': 60, '6h': 360, '24h': 1440, '7d': 10080, '30d': 43200 };
 const MAX_BODY = 8 * 1024 * 1024;
 
@@ -103,6 +104,9 @@ function createServer(app) {
         if (req.method === 'GET' && p === '/api/stats') return send(res, 200, stats(url));
         if (req.method === 'GET' && p === '/api/pulse') return send(res, 200, { requests: pipeline.recentRequests.slice(-4000) });
         if (req.method === 'GET' && p === '/api/tail') return send(res, 200, { tail: pipeline.tail.slice(-200) });
+        if (req.method === 'GET' && p === '/api/routes') return send(res, 200, { since: sinceFor(url), routes: store.routeStats(sinceFor(url)) });
+        if (req.method === 'GET' && p === '/api/releases') return send(res, 200, { releases: releases(url) });
+        if (req.method === 'GET' && p === '/api/config') return send(res, 200, publicConfig());
         if (req.method === 'GET' && p === '/api/meta') return send(res, 200, { categories: CATEGORY_LABELS, severities: SEVERITIES, app: cfg.appName, model: cfg.model, autofixMode: cfg.autofixMode });
 
         if (req.method === 'GET' && p === '/api/issues') {
@@ -114,7 +118,8 @@ function createServer(app) {
                 since: sinceFor(url),
                 includeNoise: url.searchParams.get('noise') === '1',
             });
-            return send(res, 200, { issues: issues.map(slimIssue) });
+            const counts = Object.fromEntries(store.stateCounts(sinceFor(url)).map(r => [r.state, r.n]));
+            return send(res, 200, { issues: issues.map(slimIssue), counts });
         }
 
         const m = p.match(/^\/api\/issues\/(\d+)(\/(state|analyze))?$/);
@@ -153,7 +158,9 @@ function createServer(app) {
                 // SPA: cualquier ruta desconocida sirve el index
                 return fs.readFile(path.join(publicDir, 'index.html'), (e2, html) => (e2 ? send(res, 404, 'no encontrado') : send(res, 200, html, { 'Content-Type': MIME['.html'] })));
             }
-            send(res, 200, data, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+            // Los ficheros de /assets llevan hash en el nombre: se pueden cachear para siempre.
+            const cache = p.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
+            send(res, 200, data, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': cache });
         });
     }
 
@@ -165,10 +172,11 @@ function createServer(app) {
         const spanMin = Math.max(1, (endMs - sinceMs) / 60000);
         const bucketMin = [1, 2, 5, 10, 15, 30, 60, 120, 360, 720, 1440].find(b => spanMin / b <= 120) || 1440;
         const buckets = new Map();
-        const totals = { requests: 0, err4: 0, err5: 0, slow: 0, apdex_sat: 0, apdex_tol: 0, latency_sum: 0, latency_n: 0, by_category: {} };
+        const totals = { requests: 0, err4: 0, err5: 0, slow: 0, apdex_sat: 0, apdex_tol: 0, latency_sum: 0, latency_n: 0, by_category: {}, hist: [] };
         for (const r of rows) {
             const t = Math.floor(Date.parse(r.minute) / (bucketMin * 60000)) * bucketMin * 60000;
-            const b = buckets.get(t) || { t: new Date(t).toISOString(), requests: 0, err4: 0, err5: 0, slow: 0, apdex_sat: 0, apdex_tol: 0, latency_sum: 0, latency_n: 0, by_category: {} };
+            const b = buckets.get(t) || { t: new Date(t).toISOString(), requests: 0, err4: 0, err5: 0, slow: 0, apdex_sat: 0, apdex_tol: 0, latency_sum: 0, latency_n: 0, by_category: {}, hist: [] };
+            b.hist = mergeHist(b.hist, r.lat_hist); totals.hist = mergeHist(totals.hist, r.lat_hist);
             for (const k of ['requests', 'err4', 'err5', 'slow', 'apdex_sat', 'apdex_tol', 'latency_sum', 'latency_n']) { b[k] += r[k]; totals[k] += r[k]; }
             for (const [c, v] of Object.entries(r.by_category)) { b.by_category[c] = (b.by_category[c] || 0) + v; totals.by_category[c] = (totals.by_category[c] || 0) + v; }
             buckets.set(t, b);
@@ -176,11 +184,50 @@ function createServer(app) {
         const apdex = t => (t.requests ? (t.apdex_sat + t.apdex_tol / 2) / t.requests : null);
         return {
             since, bucketMinutes: bucketMin,
-            timeline: [...buckets.values()].map(b => ({ ...b, apdex: apdex(b), avgMs: b.latency_n ? Math.round(b.latency_sum / b.latency_n) : null })),
-            totals: { ...totals, apdex: apdex(totals), avgMs: totals.latency_n ? Math.round(totals.latency_sum / totals.latency_n) : null },
+            timeline: [...buckets.values()].map(({ hist, ...b }) => ({ ...b, apdex: apdex(b), avgMs: b.latency_n ? Math.round(b.latency_sum / b.latency_n) : null, p95: percentile(hist, 0.95) })),
+            totals: (({ hist, ...t }) => ({ ...t, apdex: apdex(t), avgMs: t.latency_n ? Math.round(t.latency_sum / t.latency_n) : null,
+                p50: percentile(hist, 0.5), p95: percentile(hist, 0.95), p99: percentile(hist, 0.99) }))(totals),
             releases: store.releasesSince(since),
             issueCounts: store.counts(since),
             latestTs: store.latestTs(),
+        };
+    }
+
+    // Cada deploy con el tráfico de los 30 min anteriores y posteriores y las incidencias que trajo.
+    function releases(url) {
+        const list = store.releasesSince(url.searchParams.get('range') === 'all' ? '0000' : sinceFor(url)).reverse();
+        const win = 30 * 60000;
+        const sum = rows => {
+            const t = rows.reduce((a, r) => { a.requests += r.requests; a.err5 += r.err5; a.err4 += r.err4; a.hist = mergeHist(a.hist, r.lat_hist); return a; }, { requests: 0, err5: 0, err4: 0, hist: [] });
+            return { requests: t.requests, err4: t.err4, err5: t.err5, rate5: t.requests ? t.err5 / t.requests : null, p95: percentile(t.hist, 0.95) };
+        };
+        return list.map(r => {
+            // Las métricas van por minuto: la ventana "después" empieza en el minuto del deploy.
+            const at = Math.floor(Date.parse(r.ts) / 60000) * 60000;
+            const iso = ms => new Date(ms).toISOString();
+            const issues = store.issuesAfterRelease(r.version);
+            return {
+                ...r,
+                before: sum(store.metricsSince(iso(at - win), iso(at))),
+                after: sum(store.metricsSince(iso(at), iso(at + win))),
+                complete: Date.now() - Date.parse(r.ts) >= win,
+                newIssues: issues.length,
+                issues: issues.slice(0, 8),
+            };
+        });
+    }
+
+    // Configuración efectiva sin secretos (solo si están puestos o no).
+    function publicConfig() {
+        return {
+            app: cfg.appName, host: cfg.host, port: cfg.port, sources: cfg.sources,
+            backendPath: cfg.backendPath, backendFound: app.code.files.size > 0, routes: app.routes.length, functions: app.code.funcs.length,
+            ai: { enabled: cfg.aiEnabled, url: cfg.ollamaUrl, model: cfg.model, numCtx: cfg.numCtx, timeoutMs: cfg.aiTimeoutMs, analyzeMinSeverity: cfg.analyzeMinSeverity, maxQueue: cfg.maxQueue },
+            autofix: { mode: cfg.autofixMode, minConfidence: cfg.autofixMinConfidence, gofmt: !!app.autofix.gofmt },
+            alerts: { n8nConfigured: !!cfg.n8nWebhookUrl, tokenConfigured: !!cfg.n8nWebhookToken, minSeverity: cfg.alertMinSeverity },
+            ingest: { tokenConfigured: !!cfg.ingestToken, herokuApiTokenConfigured: !!cfg.herokuApiToken },
+            thresholds: { slowRequestMs: cfg.slowRequestMs, apdexTargetMs: cfg.apdexTargetMs, correlationWindowMs: cfg.correlationWindowMs, retentionDays: cfg.retentionDays },
+            dbFile: cfg.dbFile,
         };
     }
 

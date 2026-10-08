@@ -125,3 +125,13 @@ test('picos: muchas ocurrencias en 5 min suben la severidad y marcan la incidenc
     assert.equal(issues[0].spike, 1);
     assert.equal(issues[0].severity, 'high');
 });
+
+test('percentil aproximado del histograma de latencias', () => {
+    const { latBin, percentile, mergeHist } = require('../src/store/db');
+    let h = [];
+    for (let i = 0; i < 90; i++) h = mergeHist(h, (() => { const x = []; x[latBin(40)] = 1; return x; })());
+    for (let i = 0; i < 10; i++) h = mergeHist(h, (() => { const x = []; x[latBin(2500)] = 1; return x; })());
+    assert.ok(percentile(h, 0.5) <= 50);
+    assert.ok(percentile(h, 0.95) > 2000 && percentile(h, 0.95) <= 3000);
+    assert.equal(percentile([], 0.95), null);
+});

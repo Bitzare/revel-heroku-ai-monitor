@@ -16,6 +16,7 @@ const { classify, looksLikeError, isNoiseMessage, CATEGORY_LABELS, bump } = requ
 const { fingerprint, normalizePath } = require('./fingerprint');
 const { matchRoute } = require('../code/routes');
 const { sevRank } = require('../config');
+const { latBin, mergeHist } = require('../store/db');
 
 const MERGE_WINDOW_MS = 1500;       // endpoint ↔ router de la misma petición
 const PANIC_TAIL_MS = 300;          // líneas de stack que siguen a un panic
@@ -39,6 +40,7 @@ class Pipeline extends EventEmitter {
         this.logicalNow = 0;          // ms del último timestamp de log visto
         this.stats = { lines: 0, dupes: 0, parsed: 0, requests: 0, incidents: 0, bySource: {} };
         this.metricBuf = new Map();   // minuto → delta (se vuelca cada segundo)
+        this.routeBuf = new Map();    // tramo de 10 min + endpoint → delta
         this.tail = [];               // últimas líneas relevantes para la vista en directo
         this.recentRequests = [];     // anillo para la tira de pulso del dashboard
     }
@@ -266,23 +268,32 @@ class Pipeline extends EventEmitter {
     // ---------------------------------------------------------------- métricas
     _metric(req, tsMs, mode) {
         const minute = new Date(Math.floor(tsMs / 60000) * 60000).toISOString();
-        const d = this.metricBuf.get(minute) || { requests: 0, err4: 0, err5: 0, slow: 0, apdex_sat: 0, apdex_tol: 0, latency_sum: 0, latency_n: 0, by_category: {} };
-        if (mode !== 'bg') {
-            d.requests++;
-            if (req.status >= 500 || req.routerCode) d.err5++;
-            else if (req.status >= 400) d.err4++;
-            if (req.serviceMs != null) {
-                d.latency_sum += req.serviceMs; d.latency_n++;
-                const t = this.cfg.apdexTargetMs || 500;
-                if (req.status < 500 && !req.routerCode) {
-                    if (req.serviceMs <= t) d.apdex_sat++; else if (req.serviceMs <= 4 * t) d.apdex_tol++;
-                }
-                if (req.serviceMs >= (this.cfg.slowRequestMs || 5000)) d.slow++;
-            } else if (req.status && req.status < 500) {
-                d.apdex_sat++; // sin latencia (logs locales): cuenta como satisfecha
-            }
-        }
+        const d = this.metricBuf.get(minute) || { requests: 0, err4: 0, err5: 0, slow: 0, apdex_sat: 0, apdex_tol: 0, latency_sum: 0, latency_n: 0, by_category: {}, lat_hist: [] };
         this.metricBuf.set(minute, d);
+        if (mode === 'bg') return;
+        const is5 = req.status >= 500 || !!req.routerCode, is4 = !is5 && req.status >= 400;
+        const slow = req.serviceMs != null && req.serviceMs >= (this.cfg.slowRequestMs || 5000);
+        d.requests++;
+        if (is5) d.err5++; else if (is4) d.err4++;
+        if (req.serviceMs != null) {
+            d.latency_sum += req.serviceMs; d.latency_n++;
+            d.lat_hist = mergeHist(d.lat_hist, oneHot(req.serviceMs));
+            const t = this.cfg.apdexTargetMs || 500;
+            if (!is5) { if (req.serviceMs <= t) d.apdex_sat++; else if (req.serviceMs <= 4 * t) d.apdex_tol++; }
+            if (slow) d.slow++;
+        } else if (!is5) {
+            d.apdex_sat++; // sin latencia (logs locales): cuenta como satisfecha
+        }
+        // Sondeos de bots fuera de la API no ensucian la tabla de endpoints.
+        if (!req.route || (!req.handler && !/^\/(r?v\d+|admin)\//.test(req.path || ''))) return;
+        const bucket = new Date(Math.floor(tsMs / 600000) * 600000).toISOString();
+        const k = `${bucket}|${req.method}|${req.route}`;
+        const r = this.routeBuf.get(k) || { bucket, method: req.method, route: req.route, handler: req.handler, requests: 0, err4: 0, err5: 0, slow: 0, latency_sum: 0, latency_n: 0, lat_hist: [] };
+        r.requests++;
+        if (is5) r.err5++; else if (is4) r.err4++;
+        if (slow) r.slow++;
+        if (req.serviceMs != null) { r.latency_sum += req.serviceMs; r.latency_n++; r.lat_hist = mergeHist(r.lat_hist, oneHot(req.serviceMs)); }
+        this.routeBuf.set(k, r);
     }
 
     _metricCategory(inc, tsMs) {
@@ -292,9 +303,11 @@ class Pipeline extends EventEmitter {
     }
 
     flushMetrics() {
-        if (!this.metricBuf.size) return;
+        if (!this.metricBuf.size && !this.routeBuf.size) return;
         for (const [minute, d] of this.metricBuf) this.store.addMetrics(minute, d);
+        for (const r of this.routeBuf.values()) this.store.addRouteMetrics(r.bucket, r.method, r.route, r.handler, r);
         this.metricBuf.clear();
+        this.routeBuf.clear();
         this.emit('metrics');
     }
 
@@ -305,6 +318,8 @@ class Pipeline extends EventEmitter {
     }
 
 }
+
+function oneHot(ms) { const h = []; h[latBin(ms)] = 1; return h; }
 
 function buildTitle(inc) {
     const label = CATEGORY_LABELS[inc.category] || inc.category;

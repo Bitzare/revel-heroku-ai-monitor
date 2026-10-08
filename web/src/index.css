@@ -1,0 +1,193 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* Tema de Revel Guardia: el neutro casi negro de la app de Revel (#2D2D2D sobre
+   blanco) con los acentos de estado que ya usa la app (ámbar, rojo, verde).
+   Claro por defecto; el oscuro se activa con la clase .dark en <html>. */
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Figtree Variable", system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", monospace;
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+
+  /* Estados: bien / aviso / mal (siempre con icono y texto, nunca solo color) */
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  /* Severidad "alta": entre aviso y crítica */
+  --color-high: var(--high);
+  --color-high-soft: var(--high-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-code: var(--code);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  color-scheme: light;
+  --radius: 0.625rem;
+
+  --background: #F6F6F4;
+  --foreground: #191919;
+  --card: #FFFFFF;
+  --card-foreground: #191919;
+  --popover: #FFFFFF;
+  --popover-foreground: #191919;
+  --primary: #2D2D2D;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EFEFEC;
+  --secondary-foreground: #2D2D2D;
+  --muted: #EFEFEC;
+  --muted-foreground: #66665F;
+  --accent: #EFEFEC;
+  --accent-foreground: #2D2D2D;
+  --destructive: #C62828;
+  --border: #E3E3DF;
+  --input: #D4D4CF;
+  --ring: #0093B5;
+  --code: #F4F4F1;
+
+  /* Tráfico: 2xx/3xx, 4xx, 5xx. Validado con el validador de dataviz (CVD, banda de luminosidad).
+     El ámbar queda por debajo de 3:1 sobre blanco: los gráficos llevan leyenda, tooltip y tabla. */
+  --chart-1: #2A78D6;
+  --chart-2: #C98500;
+  --chart-3: #D23F3F;
+  --chart-4: #8A8A82;
+  --chart-5: #2D2D2D;
+
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #2D2D2D;
+  --sidebar-primary: #2D2D2D;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F1F1EE;
+  --sidebar-accent-foreground: #191919;
+  --sidebar-border: #E8E8E4;
+  --sidebar-ring: #0093B5;
+
+  --good: #1D7A47;
+  --good-soft: #E3F2E9;
+  --warn: #8F5E00;
+  --warn-soft: #FAF0DA;
+  --high: #B4440E;
+  --high-soft: #FCEBDF;
+  --bad: #C62828;
+  --bad-soft: #FBE4E3;
+  --info: #2F5F8F;
+  --info-soft: #E6EEF7;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #111111;
+  --foreground: #ECECE9;
+  --card: #1A1A1A;
+  --card-foreground: #ECECE9;
+  --popover: #1C1C1C;
+  --popover-foreground: #ECECE9;
+  --primary: #ECECE9;
+  --primary-foreground: #191919;
+  --secondary: #252525;
+  --secondary-foreground: #ECECE9;
+  --muted: #232323;
+  --muted-foreground: #A3A39D;
+  --accent: #262626;
+  --accent-foreground: #ECECE9;
+  --destructive: #EF5350;
+  --border: #2B2B2B;
+  --input: #383838;
+  --ring: #00B8DE;
+  --code: #141414;
+
+  --chart-1: #3987E5;
+  --chart-2: #C98500;
+  --chart-3: #E04848;
+  --chart-4: #8E8E88;
+  --chart-5: #ECECE9;
+
+  --sidebar: #161616;
+  --sidebar-foreground: #DADAD6;
+  --sidebar-primary: #ECECE9;
+  --sidebar-primary-foreground: #191919;
+  --sidebar-accent: #222222;
+  --sidebar-accent-foreground: #ECECE9;
+  --sidebar-border: #262626;
+  --sidebar-ring: #00B8DE;
+
+  --good: #4CC27E;
+  --good-soft: #15301F;
+  --warn: #E2A93A;
+  --warn-soft: #33280F;
+  --high: #F08A4B;
+  --high-soft: #3A2012;
+  --bad: #F26663;
+  --bad-soft: #3B1716;
+  --info: #7FB0E6;
+  --info-soft: #172636;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  .tabular { font-variant-numeric: tabular-nums; }
+}

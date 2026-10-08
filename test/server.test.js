@@ -129,3 +129,32 @@ test('extractN8nLines acepta los formatos habituales de n8n', () => {
     assert.deepEqual(extractN8nLines(b([{ json: { line: 'a' } }, { data: 'b\nc' }])), ['a', 'b', 'c']);
     assert.deepEqual(extractN8nLines(b('a\r\nb')), ['a', 'b']);
 });
+
+test('endpoints, deploys, percentiles y configuración', async (t) => {
+    const { app, base } = await start({ aiEnabled: false, herokuApiToken: 'secreto-que-no-debe-salir' });
+    t.after(() => app.stop());
+    await req(base, 'POST', '/api/ingest/raw', fixtureLines('heroku_mixed.log').join('\n'));
+    app.pipeline.flush();
+
+    const routes = (await req(base, 'GET', '/api/routes?range=all')).json.routes;
+    const pay = routes.find(r => r.route === '/rv1/payments/coin_packs/intent');
+    assert.equal(pay.handler, 'PostCoinPackIntent');
+    assert.equal(pay.err5, 1);
+    assert.equal(pay.p95 > 0, true);
+    assert.ok(!routes.some(r => r.route.includes('wp-admin') || r.route === '/.env'), 'los sondeos no entran en la tabla de endpoints');
+    assert.ok(routes.some(r => r.route === '/rv1/this-route-does-not-exist' && r.handler === null), 'las rutas de la API inexistentes sí');
+
+    const stats = (await req(base, 'GET', '/api/stats?range=all')).json;
+    assert.ok(stats.totals.p50 != null && stats.totals.p95 >= stats.totals.p50 && stats.totals.p99 >= stats.totals.p95);
+
+    const rel = (await req(base, 'GET', '/api/releases?range=all')).json.releases;
+    assert.equal(rel[0].version, 'v812');
+    assert.ok(rel[0].newIssues >= 5);
+    assert.ok(rel[0].after.requests >= 1);
+    assert.ok('ai_title' in rel[0].issues[0]);
+
+    const cfg = (await req(base, 'GET', '/api/config')).json;
+    assert.equal(cfg.ingest.herokuApiTokenConfigured, true);
+    assert.equal(cfg.routes, 5);
+    assert.doesNotMatch(JSON.stringify(cfg), /secreto-que-no-debe-salir/);
+});

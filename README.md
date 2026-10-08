@@ -12,7 +12,7 @@ Heroku ──► heroku-api / heroku-cli / drain Logplex / n8n ──► pipelin
 
 ## Puesta en marcha
 
-Requisitos: **Node ≥ 22.13** (usa `node:sqlite`, sin dependencias nativas ni `npm install`), [Ollama](https://ollama.com) con el modelo descargado y, opcionalmente, la Heroku CLI.
+Requisitos: **Node ≥ 22.13** (usa `node:sqlite`; el monitor no tiene dependencias ni necesita `npm install`), [Ollama](https://ollama.com) con el modelo descargado y, opcionalmente, la Heroku CLI.
 
 ```bash
 ollama pull qwen3.5:9b
@@ -85,21 +85,41 @@ Mientras el monitor no esté probado en producción, deja activo el workflow de 
 
 ## Dashboard
 
-- **Pulso**: cada petición es un trazo. Hacia arriba, las correctas (la altura es la latencia en escala logarítmica). Hacia abajo, los 4xx (arena) y los 5xx o errores de Heroku (coral). Las líneas discontinuas son deploys.
-- **Incidencias**: filtros por estado, periodo, categoría y texto. El detalle incluye diagnóstico, líneas de log con el error resaltado, código implicado, blame, parche, histograma de 24 h y últimas ocurrencias. Acciones: reconocer, resolver, ignorar, reabrir y reanalizar.
-- **En directo**: errores, peticiones fallidas, eventos de plataforma y deploys según llegan.
-- **Fuentes**: estado de cada fuente, de Ollama, de la cola y de las alertas.
+React con Vite, Tailwind y shadcn/ui, con la misma base que la intranet de Brisa Coffee: sidebar, tarjetas de indicadores con umbral, tablas ordenables y gráficos de Recharts. El código está en `web/` y se compila a `public/`, que va commiteado, así que `npm start` no necesita compilar nada.
 
-Tema claro y oscuro, usable en móvil y con navegación por teclado (↑/↓ en la lista).
+| Sección | Qué muestra |
+|---|---|
+| **Resumen** | Estado del servicio con una frase que lo interpreta, peticiones del periodo y tráfico por tramo (correctas, 4xx y 5xx) con los deploys marcados. Cuatro indicadores con su umbral: 5xx < 1 %, p95 < 1 s, Apdex ≥ 0,85 e incidencias activas. Debajo, latencia p95 y media, ocurrencias por categoría, endpoints con más errores y **Para revisar**: críticas, regresiones, picos, parches listos, diagnósticos fallidos y fuentes caídas. |
+| **Incidencias** | Tabla ordenable con severidad, ruta, categoría, ocurrencias, usuarios, última y primera vez, estado y diagnóstico. Pestañas por estado (con recuento), búsqueda, filtros de categoría y severidad, y la opción de incluir el ruido. |
+| **Incidencia** | Cabecera con etiquetas y acciones (reconocer, resolver, ignorar, reabrir). Diagnóstico con causa, pasos, tipo, confianza y avisos de verificación. Líneas de log con el error resaltado, parche con el diff coloreado, ocurrencias recientes, actividad en 24 h, código y último cambio, usuarios afectados y clasificación. |
+| **Endpoints** | Cada ruta con peticiones, 5xx, 4xx, % de error, p50, p95, peticiones lentas e incidencias abiertas. Marca las rutas llamadas que no existen en `routes*.go`. |
+| **Deploys** | Cada release comparada con los 30 min anteriores (peticiones, 5xx, 4xx, p95), con un veredicto y las incidencias que aparecieron justo después. |
+| **En directo** | Errores, 4xx, eventos de plataforma y deploys según llegan, con filtro y pausa. |
+| **Fuentes y ajustes** | Estado de cada fuente, de la IA (cola, analizadas y fallidas) y de las alertas de n8n, más la configuración efectiva sin secretos y cómo conectar más fuentes. |
+
+El periodo (15 min a 30 días) se elige arriba y se recuerda. Todo se actualiza en vivo por SSE. Tiene tema claro y oscuro y se adapta a móvil.
+
+Los colores de tráfico están validados para daltonismo en los dos temas, y cada serie lleva leyenda y tooltip. Los estados siempre van con icono y texto, nunca solo con color.
+
+Para desarrollar la interfaz:
+
+```bash
+cd web && npm install
+npm run dev      # http://localhost:5174, proxifica /api al monitor en :3333
+npm run build    # compila a ../public (commitea el resultado)
+```
 
 ## API
 
 | Método | Ruta | |
 |---|---|---|
 | GET | `/api/health` | Estado global, fuentes, IA y alertas |
-| GET | `/api/stats?range=1h\|6h\|24h\|7d\|all[&anchor=latest]` | Serie temporal y totales |
+| GET | `/api/stats?range=15m\|1h\|6h\|24h\|7d\|30d\|all[&anchor=latest]` | Serie temporal, totales y percentiles de latencia |
 | GET | `/api/issues?state=active\|open\|ack\|resolved\|ignored\|all&range=&q=&noise=1` | Lista |
 | GET | `/api/issues/:id` | Detalle con ocurrencias e histograma |
+| GET | `/api/routes?range=` | Tráfico, errores y latencia (p50/p95) por endpoint |
+| GET | `/api/releases?range=` | Deploys con métricas antes/después e incidencias nuevas |
+| GET | `/api/config` | Configuración efectiva sin secretos |
 | POST | `/api/issues/:id/state` `{state}` | Requiere cabecera `X-AIMON: 1` |
 | POST | `/api/issues/:id/analyze` | Requiere `X-AIMON: 1` |
 | GET | `/api/stream` | Server-Sent Events: `issue`, `req`, `tail`, `health`, `release` |

@@ -68,7 +68,24 @@ CREATE TABLE IF NOT EXISTS metrics (
     apdex_tol INTEGER NOT NULL DEFAULT 0,
     latency_sum INTEGER NOT NULL DEFAULT 0,
     latency_n INTEGER NOT NULL DEFAULT 0,
-    by_category TEXT NOT NULL DEFAULT '{}'
+    by_category TEXT NOT NULL DEFAULT '{}',
+    lat_hist TEXT NOT NULL DEFAULT '[]'
+);
+
+-- Tráfico por endpoint en tramos de 10 minutos (para la vista de endpoints).
+CREATE TABLE IF NOT EXISTS route_metrics (
+    bucket TEXT NOT NULL,
+    method TEXT NOT NULL,
+    route TEXT NOT NULL,
+    handler TEXT,
+    requests INTEGER NOT NULL DEFAULT 0,
+    err4 INTEGER NOT NULL DEFAULT 0,
+    err5 INTEGER NOT NULL DEFAULT 0,
+    slow INTEGER NOT NULL DEFAULT 0,
+    latency_sum INTEGER NOT NULL DEFAULT 0,
+    latency_n INTEGER NOT NULL DEFAULT 0,
+    lat_hist TEXT NOT NULL DEFAULT '[]',
+    PRIMARY KEY (bucket, method, route)
 );
 
 CREATE TABLE IF NOT EXISTS releases (
@@ -86,6 +103,7 @@ class Store {
         this.db = new DatabaseSync(file);
         this.db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;');
         this.db.exec(SCHEMA);
+        this._migrate();
         this.st = {
             issueByFp: this.db.prepare('SELECT * FROM issues WHERE fingerprint = ?'),
             issueById: this.db.prepare('SELECT * FROM issues WHERE id = ?'),
@@ -98,6 +116,13 @@ class Store {
             insertEvent: this.db.prepare(`INSERT INTO events (issue_id, ts, kind, category, severity, method, path, status_code, dyno, request_id, service_ms, message, evidence, user_id)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`),
         };
+    }
+
+    // Columnas añadidas después de la primera versión del esquema (BD ya existentes).
+    _migrate() {
+        const has = (table, col) => this.db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === col);
+        if (!has('metrics', 'lat_hist')) this.db.exec("ALTER TABLE metrics ADD COLUMN lat_hist TEXT NOT NULL DEFAULT '[]'");
+        if (!has('issues', 'handler_dir')) this.db.exec('ALTER TABLE issues ADD COLUMN handler_dir TEXT');
     }
 
     close() { this.db.close(); }
@@ -185,28 +210,76 @@ class Store {
     addMetrics(minute, delta) {
         const row = this.db.prepare('SELECT * FROM metrics WHERE minute = ?').get(minute);
         if (!row) {
-            this.db.prepare(`INSERT INTO metrics (minute, requests, err4, err5, slow, apdex_sat, apdex_tol, latency_sum, latency_n, by_category)
-                VALUES (?,?,?,?,?,?,?,?,?,?)`).run(minute, delta.requests || 0, delta.err4 || 0, delta.err5 || 0, delta.slow || 0,
-                delta.apdex_sat || 0, delta.apdex_tol || 0, delta.latency_sum || 0, delta.latency_n || 0, JSON.stringify(delta.by_category || {}));
+            this.db.prepare(`INSERT INTO metrics (minute, requests, err4, err5, slow, apdex_sat, apdex_tol, latency_sum, latency_n, by_category, lat_hist)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(minute, delta.requests || 0, delta.err4 || 0, delta.err5 || 0, delta.slow || 0,
+                delta.apdex_sat || 0, delta.apdex_tol || 0, delta.latency_sum || 0, delta.latency_n || 0, JSON.stringify(delta.by_category || {}),
+                JSON.stringify(delta.lat_hist || []));
             return;
         }
         const cats = JSON.parse(row.by_category || '{}');
         for (const [k, v] of Object.entries(delta.by_category || {})) cats[k] = (cats[k] || 0) + v;
+        const hist = mergeHist(JSON.parse(row.lat_hist || '[]'), delta.lat_hist || []);
         this.db.prepare(`UPDATE metrics SET requests = requests + ?, err4 = err4 + ?, err5 = err5 + ?, slow = slow + ?,
-            apdex_sat = apdex_sat + ?, apdex_tol = apdex_tol + ?, latency_sum = latency_sum + ?, latency_n = latency_n + ?, by_category = ? WHERE minute = ?`)
+            apdex_sat = apdex_sat + ?, apdex_tol = apdex_tol + ?, latency_sum = latency_sum + ?, latency_n = latency_n + ?, by_category = ?, lat_hist = ? WHERE minute = ?`)
             .run(delta.requests || 0, delta.err4 || 0, delta.err5 || 0, delta.slow || 0, delta.apdex_sat || 0, delta.apdex_tol || 0,
-                delta.latency_sum || 0, delta.latency_n || 0, JSON.stringify(cats), minute);
+                delta.latency_sum || 0, delta.latency_n || 0, JSON.stringify(cats), JSON.stringify(hist), minute);
     }
 
-    metricsSince(since) {
-        return this.db.prepare('SELECT * FROM metrics WHERE minute >= ? ORDER BY minute').all(since)
-            .map(r => ({ ...r, by_category: JSON.parse(r.by_category || '{}') }));
+    addRouteMetrics(bucket, method, route, handler, d) {
+        const row = this.db.prepare('SELECT lat_hist FROM route_metrics WHERE bucket = ? AND method = ? AND route = ?').get(bucket, method, route);
+        if (!row) {
+            this.db.prepare(`INSERT INTO route_metrics (bucket, method, route, handler, requests, err4, err5, slow, latency_sum, latency_n, lat_hist)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(bucket, method, route, handler || null, d.requests, d.err4, d.err5, d.slow, d.latency_sum, d.latency_n, JSON.stringify(d.lat_hist));
+            return;
+        }
+        this.db.prepare(`UPDATE route_metrics SET requests = requests + ?, err4 = err4 + ?, err5 = err5 + ?, slow = slow + ?,
+            latency_sum = latency_sum + ?, latency_n = latency_n + ?, lat_hist = ? WHERE bucket = ? AND method = ? AND route = ?`)
+            .run(d.requests, d.err4, d.err5, d.slow, d.latency_sum, d.latency_n, JSON.stringify(mergeHist(JSON.parse(row.lat_hist || '[]'), d.lat_hist)), bucket, method, route);
+    }
+
+    /** Agregado por endpoint desde `since`, con incidencias activas de cada uno. */
+    routeStats(since) {
+        const rows = this.db.prepare('SELECT * FROM route_metrics WHERE bucket >= ?').all(since);
+        const by = new Map();
+        for (const r of rows) {
+            const k = `${r.method} ${r.route}`;
+            const a = by.get(k) || { method: r.method, route: r.route, handler: r.handler, requests: 0, err4: 0, err5: 0, slow: 0, latency_sum: 0, latency_n: 0, hist: [] };
+            for (const f of ['requests', 'err4', 'err5', 'slow', 'latency_sum', 'latency_n']) a[f] += r[f];
+            a.hist = mergeHist(a.hist, JSON.parse(r.lat_hist || '[]'));
+            if (r.handler) a.handler = r.handler;
+            by.set(k, a);
+        }
+        const open = this.db.prepare(`SELECT method, route, COUNT(*) AS n, MAX(CASE severity WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END) AS worst
+            FROM issues WHERE state IN ('open','ack') AND route IS NOT NULL AND severity != 'noise' GROUP BY method, route`).all();
+        const openBy = new Map(open.map(o => [`${o.method} ${o.route}`, o]));
+        return [...by.values()].map(a => {
+            const o = openBy.get(`${a.method} ${a.route}`);
+            return {
+                method: a.method, route: a.route, handler: a.handler, requests: a.requests, err4: a.err4, err5: a.err5, slow: a.slow,
+                errorRate: a.requests ? (a.err4 + a.err5) / a.requests : 0, rate5: a.requests ? a.err5 / a.requests : 0,
+                avgMs: a.latency_n ? Math.round(a.latency_sum / a.latency_n) : null,
+                p50: percentile(a.hist, 0.5), p95: percentile(a.hist, 0.95),
+                openIssues: o ? o.n : 0, worstSeverity: o ? ['noise', 'low', 'medium', 'high', 'critical'][o.worst] : null,
+            };
+        });
+    }
+
+    metricsSince(since, until = '9999') {
+        return this.db.prepare('SELECT * FROM metrics WHERE minute >= ? AND minute < ? ORDER BY minute').all(since, until)
+            .map(r => ({ ...r, by_category: JSON.parse(r.by_category || '{}'), lat_hist: JSON.parse(r.lat_hist || '[]') }));
     }
 
     addRelease(ts, version, description) {
         this.db.prepare('INSERT OR IGNORE INTO releases (ts, version, description) VALUES (?,?,?)').run(ts, version, description);
     }
     releasesSince(since) { return this.db.prepare('SELECT * FROM releases WHERE ts >= ? ORDER BY ts').all(since); }
+    issuesAfterRelease(version) {
+        return this.db.prepare("SELECT id, title, severity, category, count, state, method, route, analysis FROM issues WHERE after_release = ? AND severity != 'noise' ORDER BY count DESC").all(version)
+            .map(({ analysis, ...r }) => { let t = null; try { t = analysis ? JSON.parse(analysis).title || null : null; } catch { /* texto */ } return { ...r, ai_title: t }; });
+    }
+    stateCounts(since) {
+        return this.db.prepare("SELECT state, COUNT(*) AS n FROM issues WHERE last_seen >= ? AND severity != 'noise' GROUP BY state").all(since);
+    }
     lastRelease() { return this.db.prepare('SELECT * FROM releases ORDER BY ts DESC LIMIT 1').get() || null; }
 
     latestTs() {
@@ -227,10 +300,36 @@ class Store {
         const cutoff = new Date(Date.now() - retentionDays * 86400000).toISOString();
         this.db.prepare('DELETE FROM events WHERE ts < ?').run(cutoff);
         this.db.prepare('DELETE FROM metrics WHERE minute < ?').run(cutoff);
+        this.db.prepare('DELETE FROM route_metrics WHERE bucket < ?').run(cutoff);
         // Máximo 200 ocurrencias guardadas por incidencia: el contador sigue siendo exacto.
         this.db.exec(`DELETE FROM events WHERE id IN (
             SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY issue_id ORDER BY ts DESC) AS rn FROM events) WHERE rn > 200)`);
     }
+}
+
+// Histograma de latencias: límites superiores (ms) de cada tramo; el último tramo es "más de 30 s".
+const LAT_BINS = [25, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000, 20000, 30000];
+function latBin(ms) { const i = LAT_BINS.findIndex(b => ms <= b); return i === -1 ? LAT_BINS.length : i; }
+function mergeHist(a, b) {
+    const out = Array.from({ length: LAT_BINS.length + 1 }, (_, i) => (a[i] || 0) + (b[i] || 0));
+    return out;
+}
+/** Percentil aproximado por interpolación lineal dentro del tramo. */
+function percentile(hist, q) {
+    const total = (hist || []).reduce((s, v) => s + (v || 0), 0);
+    if (!total) return null;
+    const target = q * total;
+    let acc = 0;
+    for (let i = 0; i < hist.length; i++) {
+        const v = hist[i] || 0;
+        if (acc + v >= target) {
+            const lo = i === 0 ? 0 : LAT_BINS[i - 1];
+            const hi = i < LAT_BINS.length ? LAT_BINS[i] : LAT_BINS[LAT_BINS.length - 1] * 2;
+            return Math.round(lo + (hi - lo) * (v ? (target - acc) / v : 0));
+        }
+        acc += v;
+    }
+    return LAT_BINS[LAT_BINS.length - 1];
 }
 
 const SEV = ['noise', 'low', 'medium', 'high', 'critical'];
@@ -250,4 +349,4 @@ function hydrate(row) {
     return out;
 }
 
-module.exports = { Store };
+module.exports = { Store, latBin, mergeHist, percentile, LAT_BINS };
